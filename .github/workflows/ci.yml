@@ -3,14 +3,21 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly, so a rebuilt base image is picked up even with no code change.
+    - cron: '0 6 * * 1'
+  workflow_dispatch: {}
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -27,3 +34,36 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  # Gated on `test`, so only a green commit becomes an image. On a pull request
+  # this builds without pushing, which catches a broken Dockerfile before merge.
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          # Pull the base image every run. The weekly schedule exists to pick up
+          # base-image updates, since the only source being built is this commit.
+          pull: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
