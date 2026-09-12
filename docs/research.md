@@ -51,8 +51,10 @@ that disagree. Nothing requires Calibre-Web to exist.
 
 ## Live evidence
 
-Verified against a real 62,729-book library, mounted read-only. `pages` (Integer) and `epg_id` (Float)
-hold a value for every book and returned `null`; `estado` and `version` (text, normalized) read
-correctly. A newly added `read` (Yes/No) column also returned `null`, which is the reader bug sitting
-directly on the feature. A whole-library `LEFT JOIN` onto a column table took 66 ms, so the join is not
-the problem.
+Verified against a real library, mounted read-only. Columns using the non-link layout (an Integer and
+a Float, each holding a value for every book) returned `null`. Columns using the link layout, both
+text, read correctly. A newly added Yes/No column also returned `null`, which is the reader bug sitting
+directly on the feature.
+
+The join is not the cost. A whole-library `LEFT JOIN` onto a column table completes in tens of
+milliseconds, which is why the reader fix is about correctness rather than performance.
