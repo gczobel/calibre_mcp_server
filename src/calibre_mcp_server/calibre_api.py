@@ -18,7 +18,11 @@ from .exceptions import (
     NotFoundError,
     ConfigurationError
 )
-from .validation import validate_positive_integer, validate_search_parameters
+from .validation import (
+    validate_positive_integer,
+    validate_search_parameters,
+    validate_rating_stars
+)
 
 
 logger = logging.getLogger(__name__)
@@ -32,6 +36,61 @@ DIRECT_CUSTOM_COLUMN_DATATYPES = {
     'bool', 'int', 'float', 'datetime', 'comments', 'composite'
 }
 LINK_CUSTOM_COLUMN_DATATYPES = {'text', 'rating', 'enumeration', 'series'}
+
+# Seconds to retry a write while another writer holds the SQLite lock. Calibre
+# libraries use journal_mode=delete, so writers exclude each other at
+# whole-file granularity and a busy database surfaces as SQLITE_BUSY.
+WRITE_BUSY_TIMEOUT = 5.0
+
+
+def resolve_read_column_id(
+    cursor: sqlite3.Cursor,
+    label: str
+) -> Optional[int]:
+    """
+    Return the id of the bool custom column with ``label``, or ``None``.
+
+    The read column is a ``bool`` (Yes/No) custom column, identified by its
+    lookup label. A non-bool column that happens to share the label is not
+    the read column, and a library without the column has no read tracking.
+    """
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='custom_columns'
+    """)
+    if not cursor.fetchone():
+        return None
+
+    cursor.execute("""
+        SELECT id FROM custom_columns
+        WHERE label = ? AND datatype = 'bool'
+    """, (label,))
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def rating_to_stars(rating_value: Optional[int]) -> Optional[int]:
+    """
+    Convert Calibre's doubled rating (0-10) to whole stars 1-5.
+
+    A stored 0 (or no stored value) means unrated and returns ``None``.
+    """
+    if rating_value is None or rating_value <= 0:
+        return None
+    return rating_value // 2
+
+
+def read_value_to_bool(read_value: Any, has_column: bool) -> Optional[bool]:
+    """
+    Convert a stored read value to a boolean.
+
+    ``has_column`` distinguishes the two ``None`` meanings: with no read
+    column the state is ``None`` (no tracking); with a column, a missing row
+    is unread (``False``).
+    """
+    if not has_column:
+        return None
+    return bool(read_value) if read_value is not None else False
 
 
 @contextmanager
@@ -79,6 +138,55 @@ def database_connection(
             conn.close()
 
 
+@contextmanager
+def write_connection(
+    db_path: str,
+    timeout: Optional[float] = None
+) -> Generator[sqlite3.Connection, None, None]:
+    """
+    Context manager for a write transaction with a bounded busy timeout.
+
+    ``BEGIN IMMEDIATE`` takes the SQLite write lock up front, so a concurrent
+    writer surfaces as ``SQLITE_BUSY`` after ``timeout`` seconds rather than
+    hanging. The lock is released by commit on a clean exit and rollback on
+    error. ``timeout`` defaults to :data:`WRITE_BUSY_TIMEOUT`.
+    """
+    if timeout is None:
+        timeout = WRITE_BUSY_TIMEOUT
+
+    if not Path(db_path).exists():
+        raise DatabaseError(
+            f'Database file not found: {db_path}',
+            'connection'
+        )
+
+    conn = None
+    try:
+        conn = sqlite3.connect(db_path, timeout=timeout)
+        conn.row_factory = sqlite3.Row
+        conn.execute("BEGIN IMMEDIATE")
+        yield conn
+        conn.commit()
+    except sqlite3.OperationalError as e:
+        if conn:
+            conn.rollback()
+        message = str(e).lower()
+        if 'locked' in message or 'busy' in message:
+            raise DatabaseError(
+                'Database is locked by another writer; close Calibre or '
+                'Calibre-Web and retry the operation.',
+                'write'
+            )
+        raise DatabaseError(f'Write failed: {e}', 'write')
+    except sqlite3.Error as e:
+        if conn:
+            conn.rollback()
+        raise DatabaseError(f'Write failed: {e}', 'write')
+    finally:
+        if conn:
+            conn.close()
+
+
 class Book:
     """
     Represents a book with its metadata from the Calibre database.
@@ -91,7 +199,8 @@ class Book:
         self,
         book_id: int,
         library_path: str,
-        db_filename: str = 'metadata.db'
+        db_filename: str = 'metadata.db',
+        read_column_label: str = 'read'
     ) -> None:
         """
         Initialize a Book instance with metadata from Calibre database.
@@ -104,6 +213,9 @@ class Book:
             Path to the Calibre library folder.
         db_filename : str, optional
             Name of the SQLite database file, by default 'metadata.db'.
+        read_column_label : str, optional
+            Lookup label of the bool custom column used for read state,
+            by default 'read'.
 
         Raises
         ------
@@ -141,7 +253,10 @@ class Book:
         self.synopsis = ''
         self.tags = ''
         self.cover = ''
-        self.custom_columns: Dict[str, Optional[str]] = {}
+        self.custom_columns: Dict[str, Any] = {}
+        self.read: Optional[bool] = None
+        self.rating: Optional[int] = None
+        self.read_column_label = read_column_label
 
         # Set up database path
         self.db_path = os.path.join(library_path, db_filename)
@@ -217,6 +332,10 @@ class Book:
 
                 # Load custom columns data
                 self._load_custom_columns()
+
+                # Load read state and rating
+                self._load_read_state()
+                self._load_rating()
 
         except sqlite3.Error as e:
             raise DatabaseError(
@@ -461,6 +580,66 @@ class Book:
 
         return ' & '.join(values) if len(values) > 1 else values[0]
 
+    def _load_read_state(self) -> None:
+        """
+        Load read state from the bool custom column, if it exists.
+
+        ``read`` is True (stored 1), False (stored 0 or no row), or None
+        when the library has no read column.
+        """
+        try:
+            with database_connection(self.db_path) as conn:
+                cursor = conn.cursor()
+                column_id = resolve_read_column_id(
+                    cursor, self.read_column_label
+                )
+                raw = None
+                if column_id is not None:
+                    cursor.execute(
+                        f"SELECT value FROM custom_column_{column_id} "
+                        f"WHERE book = ?",
+                        (self.id,),
+                    )
+                    result = cursor.fetchone()
+                    raw = result[0] if result is not None else None
+
+                self.read = read_value_to_bool(
+                    raw, column_id is not None
+                )
+
+        except sqlite3.Error as e:
+            raise DatabaseError(
+                f'Failed to load read state for book ID {self.id}: {e}',
+                'read_state_loading'
+            )
+
+    def _load_rating(self) -> None:
+        """
+        Load the built-in rating, exposed as whole stars 1-5.
+
+        Calibre stores ratings doubled (0-10) in ``ratings`` plus
+        ``books_ratings_link``; a stored 0 means unrated.
+        """
+        try:
+            with database_connection(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT r.rating
+                    FROM books_ratings_link brl
+                    JOIN ratings r ON brl.rating = r.id
+                    WHERE brl.book = ?
+                """, (self.id,))
+                result = cursor.fetchone()
+                self.rating = rating_to_stars(
+                    result[0] if result is not None else None
+                )
+
+        except sqlite3.Error as e:
+            raise DatabaseError(
+                f'Failed to load rating for book ID {self.id}: {e}',
+                'rating_loading'
+            )
+
     def to_json(self) -> Dict[str, Any]:
         """
         Return the book as a JSON-compatible dictionary.
@@ -486,7 +665,9 @@ class Book:
             'tags': self.tags,
             'synopsis': self.synopsis,
             'cover': self.cover,
-            'custom_columns': self.custom_columns
+            'custom_columns': self.custom_columns,
+            'read': self.read,
+            'rating': self.rating
         }
 
     def __str__(self) -> str:
@@ -529,7 +710,8 @@ class CalibreDB:
     def __init__(
         self,
         library_path: str,
-        db_filename: str = 'metadata.db'
+        db_filename: str = 'metadata.db',
+        read_column_label: str = 'read'
     ) -> None:
         """
         Initialize CalibreDB with the path to the Calibre library.
@@ -540,6 +722,9 @@ class CalibreDB:
             Path to the Calibre library folder.
         db_filename : str, optional
             Name of the SQLite database file, by default 'metadata.db'.
+        read_column_label : str, optional
+            Lookup label of the bool custom column used for read state,
+            by default 'read'.
 
         Raises
         ------
@@ -556,6 +741,7 @@ class CalibreDB:
 
         self.library_path = library_path
         self.db_path = os.path.join(library_path, db_filename)
+        self.read_column_label = read_column_label
 
         # Validate database exists
         if not os.path.exists(self.db_path):
@@ -650,6 +836,251 @@ class CalibreDB:
                 f'Query execution failed: {e}',
                 operation
             )
+
+    def _ensure_book_exists(
+        self,
+        cursor: sqlite3.Cursor,
+        book_id: int
+    ) -> None:
+        """Raise NotFoundError when the book is not in the database."""
+        cursor.execute("SELECT id FROM books WHERE id = ?", (book_id,))
+        if not cursor.fetchone():
+            raise NotFoundError('book', str(book_id), 'ID')
+
+    def _write_read_status(self, book_id: int, read: bool) -> Dict[str, Any]:
+        """
+        Write ``read`` (1 for read, 0 for unread) into the read column.
+
+        Idempotent: uses an upsert on the ``UNIQUE(book)`` index Calibre
+        creates on the column table.
+        """
+        validated_id = validate_positive_integer(book_id, 'book_id')
+
+        with write_connection(self.db_path) as conn:
+            cursor = conn.cursor()
+            self._ensure_book_exists(cursor, validated_id)
+
+            column_id = resolve_read_column_id(
+                cursor, self.read_column_label
+            )
+            if column_id is None:
+                raise ConfigurationError(
+                    f"Read column '#{self.read_column_label}' does not exist; "
+                    f"create a Yes/No custom column with lookup name "
+                    f"'{self.read_column_label}' in Calibre first.",
+                    'read_column'
+                )
+
+            cursor.execute(
+                f"INSERT INTO custom_column_{column_id} (book, value) "
+                f"VALUES (?, ?) "
+                f"ON CONFLICT(book) DO UPDATE SET value = excluded.value",
+                (validated_id, int(read)),
+            )
+
+        return {'book_id': validated_id, 'read': read}
+
+    def mark_book_read(self, book_id: int) -> Dict[str, Any]:
+        """Mark a book read by writing 1 to the read column. Idempotent."""
+        return self._write_read_status(book_id, True)
+
+    def mark_book_unread(self, book_id: int) -> Dict[str, Any]:
+        """Mark a book unread by writing 0 to the read column. Idempotent."""
+        return self._write_read_status(book_id, False)
+
+    def set_book_rating(self, book_id: int, stars: int) -> Dict[str, Any]:
+        """
+        Set a book's rating to a whole number of stars, 1 to 5.
+
+        Calibre stores ratings doubled (2-10) in ``ratings`` with a single
+        link row per book in ``books_ratings_link``, so this finds or creates
+        the doubled rating row and replaces the book's link.
+        """
+        validated_id = validate_positive_integer(book_id, 'book_id')
+        validated_stars = validate_rating_stars(stars)
+        doubled = validated_stars * 2
+
+        with write_connection(self.db_path) as conn:
+            cursor = conn.cursor()
+            self._ensure_book_exists(cursor, validated_id)
+
+            cursor.execute(
+                "SELECT id FROM ratings WHERE rating = ?", (doubled,)
+            )
+            row = cursor.fetchone()
+            if row:
+                rating_id = row[0]
+            else:
+                cursor.execute(
+                    "INSERT INTO ratings (rating) VALUES (?)", (doubled,)
+                )
+                rating_id = cursor.lastrowid
+
+            cursor.execute(
+                "DELETE FROM books_ratings_link WHERE book = ?",
+                (validated_id,),
+            )
+            cursor.execute(
+                "INSERT INTO books_ratings_link (book, rating) VALUES (?, ?)",
+                (validated_id, rating_id),
+            )
+
+        return {'book_id': validated_id, 'rating': validated_stars}
+
+    @staticmethod
+    def _validate_text_criterion(
+        value: Optional[str],
+        name: str
+    ) -> Optional[str]:
+        """Return a non-empty, stripped text criterion or raise ValueError."""
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f'{name} must be a non-empty string')
+        return value.strip()
+
+    def _text_criterion_matches(
+        self,
+        criterion: str,
+        haystack: str
+    ) -> bool:
+        """Case- and accent-insensitive substring match."""
+        return (
+            self._normalize_text(criterion).lower()
+            in self._normalize_text(haystack).lower()
+        )
+
+    def find_books(
+        self,
+        author: Optional[str] = None,
+        tag: Optional[str] = None,
+        series: Optional[str] = None,
+        rating_min: Optional[int] = None,
+        rating_max: Optional[int] = None,
+        read: Optional[bool] = None,
+        limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """
+        Find books matching optional criteria, combined with AND.
+
+        Text criteria (author, tag, series) match case- and
+        accent-insensitively as substrings. Rating bounds are whole stars.
+        ``read`` filters on read state; without a read column every book's
+        state is ``None``, so a read filter matches nothing.
+        """
+        author = self._validate_text_criterion(author, 'author')
+        tag = self._validate_text_criterion(tag, 'tag')
+        series = self._validate_text_criterion(series, 'series')
+
+        if rating_min is not None:
+            rating_min = validate_rating_stars(rating_min)
+        if rating_max is not None:
+            rating_max = validate_rating_stars(rating_max)
+        if (
+            rating_min is not None
+            and rating_max is not None
+            and rating_min > rating_max
+        ):
+            raise ValueError('rating_min cannot exceed rating_max')
+
+        if read is not None and not isinstance(read, bool):
+            raise ValueError('read must be a boolean')
+
+        limit = validate_positive_integer(limit, 'limit')
+
+        with database_connection(self.db_path) as conn:
+            cursor = conn.cursor()
+            read_column_id = resolve_read_column_id(
+                cursor, self.read_column_label
+            )
+
+            read_join = ''
+            read_select = 'NULL AS read_value'
+            if read_column_id is not None:
+                read_join = (
+                    f"LEFT JOIN custom_column_{read_column_id} cc "
+                    f"ON b.id = cc.book"
+                )
+                read_select = 'MAX(cc.value) AS read_value'
+
+            query = f"""
+                SELECT
+                    b.id,
+                    b.title,
+                    COALESCE(GROUP_CONCAT(DISTINCT a.name ORDER BY a.name), '')
+                        AS authors,
+                    MAX(s.name) AS series_name,
+                    MAX(r.rating) AS rating,
+                    COALESCE(GROUP_CONCAT(DISTINCT t.name ORDER BY t.name), '')
+                        AS tags,
+                    {read_select}
+                FROM books b
+                LEFT JOIN books_authors_link bal ON b.id = bal.book
+                LEFT JOIN authors a ON bal.author = a.id
+                LEFT JOIN books_series_link bsl ON b.id = bsl.book
+                LEFT JOIN series s ON bsl.series = s.id
+                LEFT JOIN books_ratings_link brl ON b.id = brl.book
+                LEFT JOIN ratings r ON brl.rating = r.id
+                LEFT JOIN books_tags_link btl ON b.id = btl.book
+                LEFT JOIN tags t ON btl.tag = t.id
+                {read_join}
+                GROUP BY b.id, b.title
+                ORDER BY b.title
+            """
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+        results = []
+        for row in rows:
+            authors = (row['authors'] or '').replace(',', ' & ')
+            series_name = row['series_name'] or ''
+            tags = row['tags'] or ''
+            rating_value = row['rating']
+            read_value = row['read_value']
+
+            read_state = read_value_to_bool(
+                read_value, read_column_id is not None
+            )
+            rating = rating_to_stars(rating_value)
+
+            if (
+                author is not None
+                and not self._text_criterion_matches(author, authors)
+            ):
+                continue
+            if tag is not None and not self._text_criterion_matches(
+                tag, tags
+            ):
+                continue
+            if (
+                series is not None
+                and not self._text_criterion_matches(series, series_name)
+            ):
+                continue
+            if rating_min is not None and (
+                rating is None or rating < rating_min
+            ):
+                continue
+            if rating_max is not None and (
+                rating is None or rating > rating_max
+            ):
+                continue
+            if read is not None and read_state != read:
+                continue
+
+            results.append({
+                'id': row['id'],
+                'title': row['title'],
+                'author': authors,
+                'series': series_name,
+                'rating': rating,
+                'read': read_state,
+            })
+
+            if len(results) >= limit:
+                break
+
+        return results
 
     def search_books_by_title(
         self,

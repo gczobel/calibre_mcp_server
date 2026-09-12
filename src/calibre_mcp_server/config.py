@@ -85,6 +85,11 @@ class Config:
         return os.getenv("CALIBRE_DB_FILENAME", "metadata.db")
 
     @property
+    def read_column_label(self) -> str:
+        """Lookup label of the bool custom column used for read state."""
+        return os.getenv("CALIBRE_READ_COLUMN", "read")
+
+    @property
     def log_level(self) -> str:
         """Get the logging level from environment (default: INFO)."""
         return os.getenv("LOG_LEVEL", "INFO")

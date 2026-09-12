@@ -269,3 +269,26 @@ def validate_positive_integer(value: Any, name: str = "value") -> int:
         raise ValueError(f"{name} must be a positive integer")
 
     return value
+
+
+def validate_rating_stars(value: Any) -> int:
+    """
+    Validate that a value is a whole number of stars between 1 and 5.
+
+    Returns
+    -------
+    int
+        The validated star count.
+
+    Raises
+    ------
+    ValueError
+        If the value is not an integer in the range 1-5.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("stars must be a whole number between 1 and 5")
+
+    if value < 1 or value > 5:
+        raise ValueError("stars must be a whole number between 1 and 5")
+
+    return value

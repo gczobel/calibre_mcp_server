@@ -14,7 +14,8 @@ from .config import config
 from .exceptions import (
     DatabaseError,
     ValidationError,
-    NotFoundError
+    NotFoundError,
+    ConfigurationError
 )
 from .validation import (
     validate_search_parameters,
@@ -34,7 +35,10 @@ mcp = FastMCP(name=config.server_name)
 
 # Initialize CalibreDB instance
 try:
-    calibre_db = CalibreDB(config.calibre_library_path)
+    calibre_db = CalibreDB(
+        config.calibre_library_path,
+        read_column_label=config.read_column_label
+    )
     logger.info(
         f"Calibre database initialized at: {config.calibre_library_path}"
     )
@@ -86,7 +90,9 @@ class CalibreToolHandler:
         # Also log to standard logger for server-side debugging
         logger.error(f"Error in {operation}: {error}")
 
-        if isinstance(error, (ValueError, ValidationError)):
+        if isinstance(
+            error, (ValueError, ValidationError, ConfigurationError)
+        ):
             raise ToolError(str(error))
         elif isinstance(error, (DatabaseError, NotFoundError)):
             raise ToolError(str(error))
@@ -682,7 +688,11 @@ async def get_book_details(
         await ctx.info(f"Getting details for book ID: {book_id}")
 
         validated_id = validate_positive_integer(book_id, "book_id")
-        book = Book(validated_id, config.calibre_library_path)
+        book = Book(
+            validated_id,
+            config.calibre_library_path,
+            read_column_label=config.read_column_label
+        )
         book_details = book.to_json()
 
         book_title = book_details.get('title', 'Unknown')
@@ -692,6 +702,269 @@ async def get_book_details(
     except Exception as e:
         await CalibreToolHandler.handle_error(
             "getting book details", e, str(book_id), ctx
+        )
+
+
+#############################################
+# Read Status and Rating Tools
+#############################################
+
+
+@mcp.tool(
+    name="mark_book_read",
+    description=(
+        "Mark a book as read by writing 1 to the #read custom column. "
+        "Idempotent."
+    ),
+    tags={"book", "read", "write"},
+    annotations={
+        "title": "Mark Book Read",
+        "readOnlyHint": False,
+        "openWorldHint": False
+    }
+)
+async def mark_book_read(
+    book_id: Annotated[int, Field(
+        description="Unique ID of the book in the Calibre database",
+        gt=0
+    )],
+    ctx: Context
+) -> Dict[str, Any]:
+    """
+    Mark a book as read.
+
+    Parameters
+    ----------
+    book_id : int
+        Unique ID of the book in the database.
+
+    Returns
+    -------
+    Dict[str, Any]
+        The book ID and its new read state.
+
+    Raises
+    ------
+    ToolError
+        If the read column is missing or the book does not exist.
+    """
+    try:
+        await ctx.info(f"Marking book {book_id} as read")
+
+        validated_id = validate_positive_integer(book_id, "book_id")
+        result = calibre_db.mark_book_read(validated_id)
+
+        await ctx.info(f"Marked book {validated_id} as read")
+        return result
+
+    except Exception as e:
+        await CalibreToolHandler.handle_error(
+            "marking book read", e, str(book_id), ctx
+        )
+
+
+@mcp.tool(
+    name="mark_book_unread",
+    description=(
+        "Mark a book as unread by writing 0 to the #read custom column. "
+        "Idempotent."
+    ),
+    tags={"book", "read", "write"},
+    annotations={
+        "title": "Mark Book Unread",
+        "readOnlyHint": False,
+        "openWorldHint": False
+    }
+)
+async def mark_book_unread(
+    book_id: Annotated[int, Field(
+        description="Unique ID of the book in the Calibre database",
+        gt=0
+    )],
+    ctx: Context
+) -> Dict[str, Any]:
+    """
+    Mark a book as unread.
+
+    Parameters
+    ----------
+    book_id : int
+        Unique ID of the book in the database.
+
+    Returns
+    -------
+    Dict[str, Any]
+        The book ID and its new read state.
+
+    Raises
+    ------
+    ToolError
+        If the read column is missing or the book does not exist.
+    """
+    try:
+        await ctx.info(f"Marking book {book_id} as unread")
+
+        validated_id = validate_positive_integer(book_id, "book_id")
+        result = calibre_db.mark_book_unread(validated_id)
+
+        await ctx.info(f"Marked book {validated_id} as unread")
+        return result
+
+    except Exception as e:
+        await CalibreToolHandler.handle_error(
+            "marking book unread", e, str(book_id), ctx
+        )
+
+
+@mcp.tool(
+    name="set_book_rating",
+    description="Set a book's rating to a whole number of stars from 1 to 5",
+    tags={"book", "rating", "write"},
+    annotations={
+        "title": "Set Book Rating",
+        "readOnlyHint": False,
+        "openWorldHint": False
+    }
+)
+async def set_book_rating(
+    book_id: Annotated[int, Field(
+        description="Unique ID of the book in the Calibre database",
+        gt=0
+    )],
+    stars: Annotated[int, Field(
+        description="Rating in whole stars, from 1 to 5",
+        ge=1,
+        le=5
+    )],
+    ctx: Context
+) -> Dict[str, Any]:
+    """
+    Set a book's rating.
+
+    Parameters
+    ----------
+    book_id : int
+        Unique ID of the book in the database.
+    stars : int
+        Rating in whole stars, from 1 to 5.
+
+    Returns
+    -------
+    Dict[str, Any]
+        The book ID and its new rating.
+
+    Raises
+    ------
+    ToolError
+        If the stars are out of range or the book does not exist.
+    """
+    try:
+        await ctx.info(f"Setting rating {stars} for book {book_id}")
+
+        validated_id = validate_positive_integer(book_id, "book_id")
+        result = calibre_db.set_book_rating(validated_id, stars)
+
+        await ctx.info(f"Set rating {stars} for book {validated_id}")
+        return result
+
+    except Exception as e:
+        await CalibreToolHandler.handle_error(
+            "setting book rating", e, str(book_id), ctx
+        )
+
+
+#############################################
+# Find Books Tool
+#############################################
+
+
+@mcp.tool(
+    name="find_books",
+    description=(
+        "Find books matching optional criteria (author, tag, series, "
+        "rating range, read state), combined with AND"
+    ),
+    tags={"search", "books", "filter"},
+    annotations={
+        "title": "Find Books",
+        "readOnlyHint": True,
+        "openWorldHint": False
+    }
+)
+async def find_books(
+    author: Annotated[Optional[str], Field(
+        description=(
+            "Filter by author (case- and accent-insensitive substring)"
+        )
+    )] = None,
+    tag: Annotated[Optional[str], Field(
+        description="Filter by tag (case- and accent-insensitive substring)"
+    )] = None,
+    series: Annotated[Optional[str], Field(
+        description="Filter by series (case- and accent-insensitive substring)"
+    )] = None,
+    rating_min: Annotated[Optional[int], Field(
+        description="Minimum rating in whole stars (1-5)",
+        ge=1,
+        le=5
+    )] = None,
+    rating_max: Annotated[Optional[int], Field(
+        description="Maximum rating in whole stars (1-5)",
+        ge=1,
+        le=5
+    )] = None,
+    read: Annotated[Optional[bool], Field(
+        description="True for read books only, False for unread only"
+    )] = None,
+    limit: Annotated[int, Field(
+        description="Maximum number of books to return",
+        gt=0
+    )] = 20,
+    ctx: Optional[Context] = None
+) -> List[Dict[str, Any]]:
+    """
+    Find books matching the given criteria.
+
+    Parameters
+    ----------
+    author, tag, series : str, optional
+        Text criteria, matched case- and accent-insensitively.
+    rating_min, rating_max : int, optional
+        Rating bounds in whole stars, inclusive.
+    read : bool, optional
+        True for read only, False for unread only.
+    limit : int, optional
+        Maximum number of results, default 20.
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        Matching books with id, title, author, series, rating and read.
+
+    Raises
+    ------
+    ToolError
+        If the criteria are invalid or a database error occurs.
+    """
+    try:
+        await ctx.info("Finding books with the given criteria")
+
+        results = calibre_db.find_books(
+            author=author,
+            tag=tag,
+            series=series,
+            rating_min=rating_min,
+            rating_max=rating_max,
+            read=read,
+            limit=limit,
+        )
+
+        await ctx.info(f"Found {len(results)} books")
+        return results
+
+    except Exception as e:
+        await CalibreToolHandler.handle_error(
+            "finding books", e, None, ctx
         )
 
 
