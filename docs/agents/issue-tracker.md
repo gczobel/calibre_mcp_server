@@ -18,6 +18,7 @@ Infer the repo from `git remote -v`; `gh` does this automatically when run insid
 This repo is a fork. Work lands here first.
 
 - `origin` is `gczobel/calibre_mcp_server` and is **canonical**. The published Docker image builds from it. Bare `gh` commands target this repo.
+- **Feature PRs target `origin` `main`**, not `upstream`: work a feature branch off `main` and open the PR with `gh pr create -R gczobel/calibre_mcp_server --base main --head <branch>`. Propose upstream later, as a separate PR.
 - `upstream` is `ajtudela/calibre_mcp_server`. Upstream is dormant and has never merged an outside pull request, so **upstream contribution is best-effort and never a gate** on work here. File an upstream issue or PR only for changes that are useful on their own, and address it explicitly with `-R ajtudela/calibre_mcp_server`.
 
 ## Pull requests as a triage surface
