@@ -150,6 +150,25 @@ export HTTP_HOST=0.0.0.0
 export HTTP_PORT=9001
 ```
 
+### Running from the container image
+
+An image is published on every green push to `main`:
+
+```bash
+docker run --rm -p 9001:9001 \
+  -v /path/to/your/calibre/library:/books \
+  -e CALIBRE_LIBRARY_PATH=/books \
+  ghcr.io/gczobel/calibre_mcp_server:latest
+```
+
+Note the mount has **no `:ro`**. Read tracking writes to `metadata.db`, so a read-only mount turns the
+write tools into errors. Add `:ro` only if you will never call `mark_book_read`, `mark_book_unread` or
+`set_book_rating`.
+
+Don't have Calibre itself open on that library while writing. See
+`docs/deployment/write-enabled-mount.md` for the preconditions and for what a concurrent write looks
+like.
+
 ### Configuration example for Claude Desktop/Cursor/VSCode
 
 #### Using uv (recommended)
