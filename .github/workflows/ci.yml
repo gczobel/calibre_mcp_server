@@ -11,6 +11,12 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch: {}
 
+# A superseded pull request run is wasted work, so cancel it. Pushes to main and
+# tag builds are never cancelled, since those are what publish the image.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -31,6 +37,11 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen
+
+      # Guards against a dependency bump that updates pyproject.toml without
+      # uv.lock, which would otherwise surface as a confusing failure later.
+      - name: Check the lockfile matches pyproject.toml
+        run: uv lock --check
 
       - name: Run tests
         run: uv run pytest

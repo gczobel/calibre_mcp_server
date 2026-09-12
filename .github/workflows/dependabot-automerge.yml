@@ -1,0 +1,25 @@
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      # No age check here on purpose. Dependabot's own cooldown withholds a
+      # version until it has been released long enough, and security updates
+      # skip that cooldown deliberately. So anything that reaches a pull request
+      # is already eligible, and this only has to arm the merge.
+      #
+      # --auto means the merge happens when the required checks pass, which the
+      # protect-main ruleset enforces via the `test` check, rather than now.
+      - name: Enable auto-merge
+        run: gh pr merge --auto --squash "$PR"
+        env:
+          PR: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
