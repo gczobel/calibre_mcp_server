@@ -1,0 +1,44 @@
+version: 2
+updates:
+  # Python, via uv, so pyproject.toml and uv.lock move together. The pip
+  # ecosystem would bump pyproject without touching the lock, and uv sync
+  # --frozen in CI would then fail every pull request.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # A new release isn't considered until it has been out long enough for the
+    # obvious breakage to surface. Security updates ignore cooldown by design.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    groups:
+      python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Mutable refs such as @v7 are known to ignore cooldown
+    # (dependabot/dependabot-core#14998, #14645), so treat this as best effort.
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      # Major and minor CPython bumps can't be taken blindly: the compiled
+      # dependencies (pydantic-core, PyO3) don't support a new CPython until
+      # their own toolchain catches up, which broke the build outright in
+      # gczobel/calibre-mcp (PR #1, reverted). Patch refreshes within 3.12 are
+      # still allowed.
+      - dependency-name: "python"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
