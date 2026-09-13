@@ -1,10 +1,13 @@
-"""Tool-boundary tests: env var set before import, in-memory client.
+"""Tool-boundary tests: the tool list, and a failing write as a tool error.
 
-These tests import the server module, because that import has the side effect of
-reading ``CALIBRE_LIBRARY_PATH`` and initializing the database. The module is
-cached process-wide, so whichever test imports it first fixes the library path
-for the whole session; every boundary test therefore rebinds ``calibre_db`` to
-its own fixture library instead of depending on import order.
+These tests drive the server module through an in-memory MCP client. That import
+reads ``CALIBRE_LIBRARY_PATH``, and the module is cached process-wide, so
+``bound_server`` in ``conftest`` owns the rule for binding it to a fixture
+library — this module does not repeat it.
+
+Listing the tools needs a session of its own: ``call_tool`` opens a fresh one per
+call, and ``list_tools`` is not a tool call. The two tool calls below do not share
+a session.
 """
 
 import asyncio
@@ -12,8 +15,6 @@ import asyncio
 import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
-
-from calibre_mcp_server.calibre_api import CalibreDB
 
 EXPECTED_TOOLS = {
     "mark_book_read",
@@ -23,29 +24,21 @@ EXPECTED_TOOLS = {
 }
 
 
-def test_tools_listed_and_failure_arrives_as_tool_error(library, monkeypatch):
+def test_tools_listed_and_failure_arrives_as_tool_error(
+    library, bound_server, call_tool
+):
     book_id = library.add_book("A Book")  # no read column in this library
-    monkeypatch.setenv("CALIBRE_LIBRARY_PATH", str(library.path))
 
-    # Env var must be set before the first import of the server module.
-    import calibre_mcp_server.server as server
-
-    monkeypatch.setattr(server, "calibre_db", CalibreDB(str(library.path)))
-
-    async def run():
-        async with Client(server.mcp) as client:
+    async def list_names():
+        async with Client(bound_server.mcp) as client:
             tools = await client.list_tools()
-            names = {tool.name for tool in tools}
-            assert EXPECTED_TOOLS <= names
+            return {tool.name for tool in tools}
 
-            # A read-only tool still works.
-            stats = await client.call_tool("get_library_stats", {})
-            assert stats is not None
+    assert EXPECTED_TOOLS <= asyncio.run(list_names())
 
-            # A write against a library with no read column is a tool error.
-            with pytest.raises(ToolError, match="read"):
-                await client.call_tool(
-                    "mark_book_read", {"book_id": book_id}
-                )
+    # A read-only tool still works.
+    assert call_tool("get_library_stats") is not None
 
-    asyncio.run(run())
+    # A write against a library with no read column is a tool error.
+    with pytest.raises(ToolError, match="read"):
+        call_tool("mark_book_read", {"book_id": book_id})

@@ -4,12 +4,20 @@ Tests exercise ``Book(book_id, library_path)`` and ``CalibreDB(library_path)``
 against a minimal Calibre-like ``metadata.db`` built in a temp directory. The
 schema mirrors the tables the server actually queries, so a test never depends
 on a real Calibre install.
+
+Boundary tests need more: they drive the server module through an in-memory MCP
+client, so this module also owns how a server gets bound to a fixture library.
 """
 
+import asyncio
+import json
 import sqlite3
 from pathlib import Path
 
 import pytest
+from fastmcp import Client
+
+from calibre_mcp_server.calibre_api import CalibreDB
 
 
 # The subset of Calibre's schema the server touches. Custom-column tables are
@@ -242,3 +250,49 @@ class CalibreLibrary:
 def library(tmp_path):
     """A fresh, empty Calibre-like library per test."""
     return CalibreLibrary(tmp_path / "lib")
+
+
+# -- tool boundary -------------------------------------------------------
+
+
+@pytest.fixture
+def bound_server(library, monkeypatch):
+    """The server module, bound to this test's fixture library.
+
+    ``config`` validates at import time, so the environment variable has to be
+    set before the first import. The module is then cached process-wide, which
+    means whichever test imports it first fixes the library path for the whole
+    session — so ``calibre_db`` is rebound outright here. That is what makes a
+    boundary test independent of import order, instead of depending on two
+    modules' fixtures happening to look alike.
+    """
+    monkeypatch.setenv("CALIBRE_LIBRARY_PATH", str(library.path))
+
+    import calibre_mcp_server.server as server
+
+    monkeypatch.setattr(server, "calibre_db", CalibreDB(str(library.path)))
+    return server
+
+
+@pytest.fixture
+def call_tool(bound_server):
+    """Call one tool, returning the raw result for assertions on its content.
+
+    One client session per call. A test that needs ``list_tools``, or several
+    operations sharing a session, opens its own from ``bound_server.mcp`` —
+    which is what ``test_tool_boundary`` does for the tool list.
+    """
+    def _call(name, arguments=None):
+        async def run():
+            async with Client(bound_server.mcp) as client:
+                return await client.call_tool(name, arguments or {})
+
+        return asyncio.run(run())
+
+    return _call
+
+
+@pytest.fixture
+def parse_payload():
+    """Parse the JSON a tool returned, from the text block it rendered."""
+    return lambda result: json.loads(result.content[0].text)
