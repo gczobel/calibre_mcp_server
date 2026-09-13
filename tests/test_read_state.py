@@ -4,63 +4,56 @@
 library has no bool column with the read label.
 """
 
-from calibre_mcp_server.calibre_api import Book
 
-
-def _book(book_id, library, **kwargs):
-    return Book(book_id, str(library.path), **kwargs)
-
-
-def test_no_read_column_read_is_none(library):
+def test_no_read_column_read_is_none(library, book):
     book_id = library.add_book("A Book")
 
-    assert _book(book_id, library).read is None
+    assert book(book_id).read is None
 
 
-def test_read_column_with_no_row_is_false(library):
+def test_read_column_with_no_row_is_false(library, book):
     book_id = library.add_book("A Book")
     library.add_custom_column("read", "bool")
 
-    assert _book(book_id, library).read is False
+    assert book(book_id).read is False
 
 
-def test_read_column_one_is_true(library):
+def test_read_column_one_is_true(library, book):
     book_id = library.add_book("A Book")
     col = library.add_custom_column("read", "bool")
     library.set_direct_value(col, book_id, 1)
 
-    assert _book(book_id, library).read is True
+    assert book(book_id).read is True
 
 
-def test_read_column_zero_is_false(library):
+def test_read_column_zero_is_false(library, book):
     book_id = library.add_book("A Book")
     col = library.add_custom_column("read", "bool")
     library.set_direct_value(col, book_id, 0)
 
-    assert _book(book_id, library).read is False
+    assert book(book_id).read is False
 
 
-def test_custom_read_column_label(library):
+def test_custom_read_column_label(library, book):
     book_id = library.add_book("A Book")
     col = library.add_custom_column("finished", "bool")
     library.set_direct_value(col, book_id, 1)
 
-    book = _book(book_id, library, read_column_label="finished")
-    assert book.read is True
+    assert book(book_id, read_column_label="finished").read is True
 
 
-def test_non_bool_column_with_read_label_is_ignored(library):
+def test_non_bool_column_with_read_label_is_ignored(library, book):
     book_id = library.add_book("A Book")
     library.add_custom_column("read", "text")
     library.add_link_value(1, book_id, "whatever")
 
     # A text column named "read" is not the read column.
-    assert _book(book_id, library).read is None
+    assert book(book_id).read is None
 
 
-def test_read_is_exposed_in_to_json(library):
+def test_read_is_exposed_in_to_json(library, book):
     book_id = library.add_book("A Book")
     col = library.add_custom_column("read", "bool")
     library.set_direct_value(col, book_id, 1)
 
-    assert _book(book_id, library).to_json()["read"] is True
+    assert book(book_id).to_json()["read"] is True
