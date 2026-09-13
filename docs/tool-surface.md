@@ -63,7 +63,11 @@ would be a breaking change for anyone already calling them.
 
 - `mark_book_read(book_id)`, idempotent
 - `mark_book_unread(book_id)`, idempotent
-- `set_book_rating(book_id, stars)`, 1 to 5
+- `set_book_rating(book_id, stars)`, 1 to 5, or `0` to clear
+
+Clearing (`stars = 0`) deletes the book's row from `books_ratings_link`, which is Calibre's own unrated
+state: an absent link, not a stored `0`. The `ratings` dictionary row is deliberately left in place,
+because other books may share it.
 
 Writes need the library mounted read-write and the `#read` column to exist. A missing column is an
 error naming the column. Reads tolerate its absence and report `null` instead. That asymmetry is

@@ -17,7 +17,7 @@ An MCP (Model Context Protocol) server that provides tools to interact with a Ca
 | **find_books**                  | Find books by author, tag, series, rating, read state; returns count and matches | `author?, tag?, series?, rating_min?, rating_max?, read?, limit?` |
 | **mark_book_read**              | Mark a book as read                                    | `book_id: int`       |
 | **mark_book_unread**            | Mark a book as unread                                  | `book_id: int`       |
-| **set_book_rating**             | Set a book's rating (1–5 stars)                        | `book_id: int, stars: int` |
+| **set_book_rating**             | Set a book's rating (1–5 stars, or 0 to clear)         | `book_id: int, stars: int` |
 | **get_library_stats**           | Get comprehensive library statistics                   | —                    |
 | **get_all_tags**                | Get all available tags in the library                  | —                    |
 
@@ -56,7 +56,7 @@ TRANSPORT_MODE=http
 ## Features
 - **Advanced search capabilities**: Search books by title, author, series, and tags with wildcard support
 - **Comprehensive metadata**: Retrieve complete book information including publication dates, series info, and tags
-- **Read state and rating**: Mark books read or unread, set a 1–5 star rating, and see both on book details
+- **Read state and rating**: Mark books read or unread, set or clear a 1–5 star rating, and see both on book details
 - **Combined filtering**: `find_books` narrows by author, tag, series, rating range, and read state at once, and reports a count so an empty result is explicit
 - **Library statistics**: Get insights into your Calibre library with comprehensive statistics
 - **Tag management**: Browse and search through all available tags in your library
