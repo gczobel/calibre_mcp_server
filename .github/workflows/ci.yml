@@ -22,8 +22,12 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-  pull_request:
-    branches: [main]
+  # Any base branch on purpose. A stacked pull request targets another pull
+  # request's branch rather than `main`, and filtering this trigger to `main`
+  # meant such a pull request ran nothing at all: no `test`, no `publish`. The
+  # failure was quiet, since a required check that never reports has no failed
+  # check to notice, only `Expected — Waiting for status to be reported`.
+  pull_request: {}
   schedule:
     # Weekly, so a rebuilt base image is picked up even with no code change.
     - cron: '0 6 * * 1'

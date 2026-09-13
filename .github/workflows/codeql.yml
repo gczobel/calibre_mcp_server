@@ -3,8 +3,10 @@ name: CodeQL
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  # Any base branch, for the same reason `test` runs on any base branch: a
+  # stacked pull request targets another pull request's branch rather than
+  # `main`, and filtering this trigger to `main` left it with no analysis at all.
+  pull_request: {}
   schedule:
     # Weekly, so a new query pack is picked up without any code change.
     - cron: '0 6 * * 2'
