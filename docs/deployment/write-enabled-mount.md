@@ -81,5 +81,5 @@ SELECT value FROM custom_column_<id> WHERE book = <book_id>
 `1` means the write landed. If the column exists and the write returned success but this is empty, the
 write did not commit.
 
-An unchanged Calibre window is not a failed write: Calibre shows an outside write only after it
-restarts. See `docs/deployment/read-state-in-other-apps.md`.
+The value is written, but Calibre may still show the old one: it keeps metadata in memory and only
+picks up an outside write after a restart. See `docs/deployment/read-state-in-other-apps.md`.
