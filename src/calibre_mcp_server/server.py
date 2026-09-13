@@ -837,7 +837,12 @@ async def set_book_rating(
     stars: Annotated[int, Field(
         description="Rating in whole stars, from 1 to 5, or 0 to clear",
         ge=0,
-        le=5
+        le=5,
+        # Lax coercion reads false as 0, which would clear a rating by
+        # accident. The CalibreDB seam rejects booleans too, so be strict
+        # here as well rather than letting the tool accept what the domain
+        # calls invalid.
+        strict=True
     )],
     ctx: Context
 ) -> Dict[str, Any]:

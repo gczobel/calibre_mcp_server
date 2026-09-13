@@ -273,7 +273,10 @@ def validate_positive_integer(value: Any, name: str = "value") -> int:
 
 def validate_rating_stars(value: Any, allow_zero: bool = False) -> int:
     """
-    Validate that a value is a whole number of stars between 1 and 5.
+    Validate that a value is a whole number of stars, 1 to 5 by default.
+
+    Booleans are rejected rather than read as 0 and 1, so a caller cannot
+    clear a rating by passing ``false``.
 
     Parameters
     ----------
