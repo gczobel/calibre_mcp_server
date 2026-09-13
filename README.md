@@ -84,7 +84,7 @@ If the column is missing, reading still works — a book just reports no read st
 stricter: `mark_book_read` and `mark_book_unread` refuse and name the missing column.
 
 Read state is written back to `metadata.db`, so mount the library read-write, and don't have Calibre
-itself open on the same library while you write — it shows an outside write only after it restarts.
+itself open on the same library while you write — it keeps showing the old value until it restarts.
 See [deploying with write access](docs/deployment/write-enabled-mount.md).
 
 **Calibre-Web** is optional, and it can share this one read state — that takes a setting on its side.

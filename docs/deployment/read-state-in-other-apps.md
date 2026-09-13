@@ -2,7 +2,7 @@
 
 The read column belongs to Calibre. Two other views of the same library can disagree with it, and
 neither disagreement is a failed write: Calibre-Web keeps a read state of its own unless you bind it to
-the column, and Calibre's own window shows an outside write only once it restarts.
+the column, and Calibre itself keeps showing stale data until you restart it.
 
 ## Calibre-Web: bind it to the column
 
@@ -35,15 +35,15 @@ Four things about that setting are easy to miss:
 
 Setting it back to `0` returns Calibre-Web to its own read state. The column keeps whatever it holds.
 
-## Calibre's window: stale, not lost
+## Calibre keeps showing stale data until it restarts
 
-Calibre's desktop application holds the library's metadata in memory and draws from its own copy. An
-external write — this server's, or Calibre-Web's — reaches `metadata.db` at once, and Calibre shows it
-only after the application restarts.
+Calibre holds the library's metadata in memory and draws from its own copy. An external write — this
+server's, or Calibre-Web's — reaches `metadata.db` at once, and Calibre shows it only after the
+application restarts.
 
 Observed here: an MCP `mark_book_read` appeared in the Calibre-Web browser UI immediately, and in
-Calibre only after a restart. So an unchanged Calibre window is not proof that the write failed: check
-the database first, with the query in `docs/deployment/write-enabled-mount.md`.
+Calibre only after a restart. So Calibre showing old data is not proof that the write failed: check the
+database first, with the query in `docs/deployment/write-enabled-mount.md`.
 
 That same in-memory copy is the reason Calibre must not have the library open while this server writes:
 Calibre writes its copy back, and the external write is gone with no error. So quit Calibre before
