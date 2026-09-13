@@ -71,21 +71,30 @@ Read state lives in a Calibre custom column **you create** — a **Yes/No** colu
 `read` (Calibre shows it as `#read`). The server writes `1` for read and `0` for unread, and a book
 with no entry counts as unread. It needs nothing but Calibre.
 
-Create the column in Calibre: **Preferences → Add your own columns → Add custom column**, pick
-**Yes/No**, and set the lookup name to `read`. If you already keep read state under a different
-lookup name, set `CALIBRE_READ_COLUMN` to that name.
+**Create the column in Calibre first:**
+
+1. **Preferences → Add your own columns → Add custom column**
+2. pick **Yes/No**
+3. set the lookup name to `read`
+
+That is the whole setup. If you already keep read state under a different lookup name, set
+`CALIBRE_READ_COLUMN` to that name instead.
 
 If the column is missing, reading still works — a book just reports no read state. Writing is
 stricter: `mark_book_read` and `mark_book_unread` refuse and name the missing column.
 
-Read status is written back to `metadata.db`, so mount the library read-write and don't have Calibre
-itself open on the same library while you write. See `docs/deployment/write-enabled-mount.md`.
+Read state is written back to `metadata.db`, so mount the library read-write, and don't have Calibre
+itself open on the same library while you write — it shows an outside write only after it restarts.
+See [deploying with write access](docs/deployment/write-enabled-mount.md).
 
-If you also run Calibre-Web, set its `config_read_column` to this column's numeric id and the two
-share one read state. Nothing here requires Calibre-Web.
+**Calibre-Web** is optional, and it can share this one read state — that takes a setting on its side.
+See [read state in other apps](docs/deployment/read-state-in-other-apps.md).
 
-- Column contract and SQL: `docs/read-status.md`
-- Read-write deployment: `docs/deployment/write-enabled-mount.md`
+## Documentation
+
+- [Read status: the column contract](docs/read-status.md) — what `#read` is, and how it is read and written
+- [Read state in other apps](docs/deployment/read-state-in-other-apps.md) — Calibre-Web, and why Calibre can look stale
+- [Deploying with write access](docs/deployment/write-enabled-mount.md) — the read-write mount, and what to check first
 
 ## Installation
 
@@ -179,8 +188,8 @@ write tools into errors. Add `:ro` only if you will never call `mark_book_read`,
 `set_book_rating`.
 
 Don't have Calibre itself open on that library while writing. See
-`docs/deployment/write-enabled-mount.md` for the preconditions and for what a concurrent write looks
-like.
+[deploying with write access](docs/deployment/write-enabled-mount.md) for the preconditions and for what
+a concurrent write looks like.
 
 ### Configuration example for Claude Desktop/Cursor/VSCode
 
