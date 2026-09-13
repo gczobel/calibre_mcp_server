@@ -882,7 +882,8 @@ async def set_book_rating(
     name="find_books",
     description=(
         "Find books matching optional criteria (author, tag, series, "
-        "rating range, read state), combined with AND"
+        "rating range, read state), combined with AND. Returns the number "
+        "of matches alongside the matching books."
     ),
     tags={"search", "books", "filter"},
     annotations={
@@ -921,7 +922,7 @@ async def find_books(
         gt=0
     )] = 20,
     ctx: Optional[Context] = None
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Find books matching the given criteria.
 
@@ -938,8 +939,10 @@ async def find_books(
 
     Returns
     -------
-    List[Dict[str, Any]]
-        Matching books with id, title, author, series, rating and read.
+    Dict[str, Any]
+        ``count`` of matches, and ``books`` each with id, title, author,
+        series, rating and read. No matches is ``{"count": 0, "books": []}``,
+        so an empty result is always visible to the caller.
 
     Raises
     ------
@@ -960,7 +963,7 @@ async def find_books(
         )
 
         await ctx.info(f"Found {len(results)} books")
-        return results
+        return {"count": len(results), "books": results}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
