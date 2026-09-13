@@ -42,6 +42,11 @@ LINK_CUSTOM_COLUMN_DATATYPES = {'text', 'rating', 'enumeration', 'series'}
 # whole-file granularity and a busy database surfaces as SQLITE_BUSY.
 WRITE_BUSY_TIMEOUT = 5.0
 
+# List-returning searches are bounded by default, so an omitted `limit`
+# cannot return a whole library. `find_books` carries the same idea with
+# its own, smaller default.
+DEFAULT_SEARCH_LIMIT = 50
+
 
 def resolve_read_column_id(
     cursor: sqlite3.Cursor,
@@ -1097,7 +1102,8 @@ class CalibreDB:
 
     def search_books_by_title(
         self,
-        title_pattern: str
+        title_pattern: str,
+        limit: int = DEFAULT_SEARCH_LIMIT
     ) -> List[Tuple[int, str]]:
         """
         Search for books by title matching a pattern.
@@ -1109,6 +1115,8 @@ class CalibreDB:
         ----------
         title_pattern : str
             Pattern to search for in titles (supports % wildcards).
+        limit : int, optional
+            Maximum number of results, default 50.
 
         Returns
         -------
@@ -1123,6 +1131,7 @@ class CalibreDB:
             If there is a database error.
         """
         validated_pattern = validate_search_parameters(title_pattern)
+        limit = validate_positive_integer(limit, 'limit')
         normalized_pattern = self._normalize_text(validated_pattern)
 
         try:
@@ -1174,16 +1183,12 @@ class CalibreDB:
                 'title search'
             )
 
-        if not results:
-            raise NotFoundError(
-                'books', validated_pattern, 'title pattern'
-            )
-
-        return results
+        return results[:limit]
 
     def search_authors_by_name(
         self,
-        name_pattern: str
+        name_pattern: str,
+        limit: int = DEFAULT_SEARCH_LIMIT
     ) -> List[Tuple[int, str]]:
         """
         Search for authors by name matching a pattern.
@@ -1195,6 +1200,8 @@ class CalibreDB:
         ----------
         name_pattern : str
             Pattern to search for in names (supports % wildcards).
+        limit : int, optional
+            Maximum number of results, default 50.
 
         Returns
         -------
@@ -1209,6 +1216,7 @@ class CalibreDB:
             If there is a database error.
         """
         validated_pattern = validate_search_parameters(name_pattern)
+        limit = validate_positive_integer(limit, 'limit')
         normalized_pattern = self._normalize_text(validated_pattern)
 
         try:
@@ -1259,16 +1267,12 @@ class CalibreDB:
                 'author name search'
             )
 
-        if not results:
-            raise NotFoundError(
-                'authors', validated_pattern, 'name pattern'
-            )
-
-        return results
+        return results[:limit]
 
     def search_books_by_tag(
         self,
-        tag_pattern: str
+        tag_pattern: str,
+        limit: int = DEFAULT_SEARCH_LIMIT
     ) -> List[Tuple[int, str, str, str]]:
         """
         Get detailed information about books with tags matching a pattern.
@@ -1280,6 +1284,8 @@ class CalibreDB:
         ----------
         tag_pattern : str
             Pattern to search for in tag names (supports % wildcards).
+        limit : int, optional
+            Maximum number of results, default 50.
 
         Returns
         -------
@@ -1295,6 +1301,7 @@ class CalibreDB:
             If there is a database error.
         """
         validated_pattern = validate_search_parameters(tag_pattern, 100)
+        limit = validate_positive_integer(limit, 'limit')
         normalized_pattern = self._normalize_text(validated_pattern)
 
         try:
@@ -1339,9 +1346,7 @@ class CalibreDB:
                             matching_tag_ids.append(tag_id)
 
                 if not matching_tag_ids:
-                    raise NotFoundError(
-                        'books', validated_pattern, 'tag pattern'
-                    )
+                    return []
 
                 # Get books for matching tags
                 placeholders = ','.join('?' * len(matching_tag_ids))
@@ -1369,16 +1374,12 @@ class CalibreDB:
                 'tag pattern search'
             )
 
-        if not results:
-            raise NotFoundError(
-                'books', validated_pattern, 'tag pattern'
-            )
-
-        return results
+        return results[:limit]
 
     def get_books_by_author(
         self,
-        author_name: str
+        author_name: str,
+        limit: int = DEFAULT_SEARCH_LIMIT
     ) -> List[Tuple[int, str, str, str]]:
         """
         Get detailed information about all books by a specific author.
@@ -1390,6 +1391,8 @@ class CalibreDB:
         ----------
         author_name : str
             Name of the author.
+        limit : int, optional
+            Maximum number of results, default 50.
 
         Returns
         -------
@@ -1405,6 +1408,7 @@ class CalibreDB:
             If there is a database error.
         """
         validated_name = validate_search_parameters(author_name)
+        limit = validate_positive_integer(limit, 'limit')
         normalized_name = self._normalize_text(validated_name)
 
         try:
@@ -1424,9 +1428,7 @@ class CalibreDB:
                         matching_author_ids.append(author_id)
 
                 if not matching_author_ids:
-                    raise NotFoundError(
-                        'books', validated_name, 'author name'
-                    )
+                    return []
 
                 # Get books for matching authors
                 placeholders = ','.join('?' * len(matching_author_ids))
@@ -1456,14 +1458,12 @@ class CalibreDB:
                 'author books search'
             )
 
-        if not results:
-            raise NotFoundError('books', validated_name, 'author name')
-
-        return results
+        return results[:limit]
 
     def get_books_by_author_id(
         self,
-        author_id: int
+        author_id: int,
+        limit: int = DEFAULT_SEARCH_LIMIT
     ) -> List[Tuple[int, str, str, str]]:
         """
         Get detailed information about all books by a specific author ID.
@@ -1472,6 +1472,8 @@ class CalibreDB:
         ----------
         author_id : int
             ID of the author.
+        limit : int, optional
+            Maximum number of results, default 50.
 
         Returns
         -------
@@ -1487,6 +1489,7 @@ class CalibreDB:
             If there is a database error.
         """
         validated_id = validate_positive_integer(author_id, 'author_id')
+        limit = validate_positive_integer(limit, 'limit')
 
         query = """
             SELECT DISTINCT b.id, b.title, b.pubdate,
@@ -1509,14 +1512,12 @@ class CalibreDB:
             'author ID books search'
         )
 
-        if not results:
-            raise NotFoundError('books', str(validated_id), 'author ID')
-
-        return results
+        return results[:limit]
 
     def get_books_by_series(
         self,
-        series_name: str
+        series_name: str,
+        limit: int = DEFAULT_SEARCH_LIMIT
     ) -> List[Tuple[int, str, float]]:
         """
         Get all books in a specific series.
@@ -1528,6 +1529,8 @@ class CalibreDB:
         ----------
         series_name : str
             Name of the series.
+        limit : int, optional
+            Maximum number of results, default 50.
 
         Returns
         -------
@@ -1543,6 +1546,7 @@ class CalibreDB:
             If there is a database error.
         """
         validated_name = validate_search_parameters(series_name)
+        limit = validate_positive_integer(limit, 'limit')
         normalized_name = self._normalize_text(validated_name)
 
         try:
@@ -1562,9 +1566,7 @@ class CalibreDB:
                         matching_series_ids.append(series_id)
 
                 if not matching_series_ids:
-                    raise NotFoundError(
-                        'books', validated_name, 'series name'
-                    )
+                    return []
 
                 # Get books for matching series
                 placeholders = ','.join('?' * len(matching_series_ids))
@@ -1586,14 +1588,12 @@ class CalibreDB:
                 'series books search'
             )
 
-        if not results:
-            raise NotFoundError('books', validated_name, 'series name')
-
-        return results
+        return results[:limit]
 
     def get_books_by_tag(
         self,
-        tag_name: str
+        tag_name: str,
+        limit: int = DEFAULT_SEARCH_LIMIT
     ) -> List[Tuple[int, str, str, str]]:
         """
         Get detailed information about all books with a specific tag.
@@ -1605,6 +1605,8 @@ class CalibreDB:
         ----------
         tag_name : str
             Name of the tag to search for.
+        limit : int, optional
+            Maximum number of results, default 50.
 
         Returns
         -------
@@ -1620,6 +1622,7 @@ class CalibreDB:
             If there is a database error.
         """
         validated_name = validate_search_parameters(tag_name, 100)
+        limit = validate_positive_integer(limit, 'limit')
         normalized_name = self._normalize_text(validated_name)
 
         try:
@@ -1639,7 +1642,7 @@ class CalibreDB:
                         matching_tag_ids.append(tag_id)
 
                 if not matching_tag_ids:
-                    raise NotFoundError('books', validated_name, 'tag name')
+                    return []
 
                 # Get books for matching tags
                 placeholders = ','.join('?' * len(matching_tag_ids))
@@ -1667,10 +1670,7 @@ class CalibreDB:
                 'tag books search'
             )
 
-        if not results:
-            raise NotFoundError('books', validated_name, 'tag name')
-
-        return results
+        return results[:limit]
 
     def get_all_tags(self) -> List[Tuple[int, str]]:
         """
