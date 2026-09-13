@@ -233,3 +233,8 @@ skills/
 .skills-review/
 skills-lock.json
 .npm-cache/
+
+# Linked git worktrees. Several agents work in one clone at the same time, so
+# each takes a `git worktree` under here instead of fighting over the primary
+# checkout's branch. The worktrees are branches, not repo source.
+.worktree/
