@@ -1,0 +1,60 @@
+# Reusable compose definition for the Calibre MCP server.
+#
+# It is a plain Compose file, so `docker compose up -d` runs it as-is and any
+# Compose-capable host or manager can take it unchanged. Set the library path on
+# the left of the volume line before starting it.
+#
+# The library is mounted read-write on purpose. Read state and ratings are
+# written into metadata.db, so a read-only mount turns mark_book_read,
+# mark_book_unread and set_book_rating into errors. Mount :ro only if you will
+# never call those three.
+#
+# Calibre itself must not have the same library open while the server writes.
+# Calibre caches metadata in memory and writes it back, which silently discards
+# an outside write. Calibre-Web does not do that, so it can share the library.
+
+services:
+  calibre-mcp:
+    image: ghcr.io/gczobel/calibre_mcp_server:latest
+    # For deliberate upgrades, pin the sha tag the publish job also builds:
+    #   image: ghcr.io/gczobel/calibre_mcp_server:e0ad1847e128577eae7d7ff83b507cbc0b5816ad
+    container_name: calibre-mcp
+    restart: unless-stopped
+    environment:
+      - CALIBRE_LIBRARY_PATH=/books
+      - CALIBRE_DB_FILENAME=metadata.db
+      - TRANSPORT_MODE=http
+      - HTTP_HOST=0.0.0.0
+      - HTTP_PORT=9001
+      # Lookup name of the Calibre Yes/No column holding read state. The column
+      # has to exist already; the server never creates it.
+      - CALIBRE_READ_COLUMN=read
+      # - LOG_LEVEL=DEBUG
+      # - MCP_SERVER_NAME=Calibre MCP Server
+    volumes:
+      # Read-write. Change the left-hand side to your library's path.
+      - /path/to/your/calibre/library:/books
+      # Read-only, for a deployment that only ever reads:
+      # - /path/to/your/calibre/library:/books:ro
+    ports:
+      - "9001:9001"
+    healthcheck:
+      # Any HTTP answer means the transport is up. A GET on /mcp returns 406 by
+      # design, so an HTTPError still counts as healthy; only a failed
+      # connection is unhealthy.
+      test:
+        - CMD
+        - python3
+        - -c
+        - |
+          import urllib.error, urllib.request, sys
+          try:
+              urllib.request.urlopen("http://127.0.0.1:9001/mcp", timeout=3)
+          except urllib.error.HTTPError:
+              pass
+          except Exception:
+              sys.exit(1)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
