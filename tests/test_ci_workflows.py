@@ -65,9 +65,7 @@ def test_a_push_still_targets_main_and_version_tags():
     assert push["tags"] == ["v*"]
 
 
-# ``(event_name, ref, publishes)``. The refs are the ones GitHub reports for
-# each event: a branch ref for a dispatch, `refs/tags/<tag>` for a tag push, and
-# `refs/pull/<n>/merge` for a pull request.
+# ``(event_name, ref, publishes)``.
 PUBLISH_GATE = [
     ("workflow_dispatch", "refs/heads/main", True),
     ("workflow_dispatch", "refs/heads/feature-branch", False),
@@ -78,6 +76,16 @@ PUBLISH_GATE = [
 ]
 
 
+def github_context(event_name: str, ref: str) -> dict:
+    """The parts of the `github` context the gates are read against.
+
+    The refs are the ones GitHub reports for each event: a branch ref for a
+    dispatch, `refs/tags/<tag>` for a tag push, and `refs/pull/<n>/merge` for a
+    pull request.
+    """
+    return {"event_name": event_name, "ref": ref}
+
+
 @pytest.mark.parametrize("event_name,ref,publishes", PUBLISH_GATE)
 def test_the_publish_gate_follows_the_ref_not_the_event(event_name, ref, publishes):
     """A dispatch on a branch may build, but must not publish.
@@ -85,7 +93,7 @@ def test_the_publish_gate_follows_the_ref_not_the_event(event_name, ref, publish
     The homelab pulls `:latest`, so a stray dispatch from a feature branch would
     replace the deployed server image with unreviewed code.
     """
-    assert _publishes(workflow("ci.yml"), event_name, ref) is publishes
+    assert _publishes(workflow("ci.yml"), github_context(event_name, ref)) is publishes
 
 
 def test_the_login_and_the_push_are_gated_alike():
@@ -96,9 +104,14 @@ def test_the_login_and_the_push_are_gated_alike():
     """
     loaded = workflow("ci.yml")
     for event_name, ref, _ in PUBLISH_GATE:
-        assert _logs_in(loaded, event_name, ref) is _publishes(
-            loaded, event_name, ref
-        ), f"on {event_name} at {ref}, the GHCR login and the image push disagree"
+        github = github_context(event_name, ref)
+        assert _logs_in(loaded, github) is _publishes(loaded, github), (
+            f"on {event_name} at {ref}, the GHCR login and the image push disagree"
+        )
+
+
+
+
 
 
 # -- reading the gate out of the workflow --------------------------------
@@ -111,39 +124,38 @@ def _step(loaded: dict, job: str, uses_prefix: str) -> dict:
     raise AssertionError(f"job {job!r} has no step using {uses_prefix}")
 
 
-def _publishes(loaded: dict, event_name: str, ref: str) -> bool:
+def _publishes(loaded: dict, github: dict) -> bool:
     step = _step(loaded, "publish", "docker/build-push-action")
     # The action's own default is to build without pushing.
     declared = (step.get("with") or {}).get("push", "false")
-    return _evaluate(declared, event_name, ref, loaded)
+    return _evaluate(declared, github, loaded)
 
 
-def _logs_in(loaded: dict, event_name: str, ref: str) -> bool:
+def _logs_in(loaded: dict, github: dict) -> bool:
     step = _step(loaded, "publish", "docker/login-action")
-    return _evaluate(step.get("if", "true"), event_name, ref, loaded)
+    return _evaluate(step.get("if", "true"), github, loaded)
 
 
-def _evaluate(expression: object, event_name: str, ref: str, loaded: dict) -> bool:
+def _evaluate(expression: object, github: dict, loaded: dict) -> bool:
     """Evaluate a gate for one event, resolving ``env`` indirection on the way.
 
     ``env.X`` is answered as the string GitHub would render, so a gate that
     reads ``env.PUBLISH_IMAGE == 'true'`` and one that repeats the expression
     inline are both read correctly.
     """
-    github = {"event_name": event_name, "ref": ref}
     source = _python_source(
         str(expression),
         lambda name: _env_value(name, github, loaded),
     )
     try:
-        return bool(_value(ast.parse(source, mode="eval").body, github))
+        return bool(_node_value(ast.parse(source, mode="eval").body, github))
     except Exception as exc:
         raise AssertionError(
             f"cannot evaluate {expression!r}, rewritten as {source!r}: {exc}"
         ) from exc
 
 
-def _value(node: ast.AST, github: dict):
+def _node_value(node: ast.AST, github: dict):
     """The value of one node of the rewritten expression.
 
     Walking the tree rather than calling ``eval`` keeps this test free of a
@@ -153,20 +165,21 @@ def _value(node: ast.AST, github: dict):
     of passing by accident.
     """
     if isinstance(node, ast.BoolOp):
-        values = [_value(value, github) for value in node.values]
+        values = [_node_value(value, github) for value in node.values]
         return all(values) if isinstance(node.op, ast.And) else any(values)
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
-        return not _value(node.operand, github)
     if isinstance(node, ast.Compare):
-        if len(node.comparators) != 1 or not isinstance(node.ops[0], (ast.Eq, ast.NotEq)):
+        if len(node.comparators) != 1 or not isinstance(
+            node.ops[0], (ast.Eq, ast.NotEq)
+        ):
             raise AssertionError(f"unsupported comparison: {ast.dump(node)}")
-        left, right = _value(node.left, github), _value(node.comparators[0], github)
+        left = _node_value(node.left, github)
+        right = _node_value(node.comparators[0], github)
         return left == right if isinstance(node.ops[0], ast.Eq) else left != right
     if isinstance(node, ast.Call):
         func = node.func
         if isinstance(func, ast.Attribute) and func.attr == "startswith":
-            return str(_value(func.value, github)).startswith(
-                _value(node.args[0], github)
+            return str(_node_value(func.value, github)).startswith(
+                _node_value(node.args[0], github)
             )
     if isinstance(node, ast.Name) and node.id.startswith("gh_"):
         field = node.id[len("gh_") :]
@@ -182,14 +195,21 @@ def _value(node: ast.AST, github: dict):
 
 
 def _env_value(name: str, github: dict, loaded: dict) -> str:
-    declared = (loaded.get("env") or {}).get(name)
+    """The string GitHub would expose as ``env.<name>`` to the publish job.
+
+    Job-level values win over workflow-level ones, as they do on a runner.
+    """
+    declared = (loaded["jobs"]["publish"].get("env") or {}).get(name)
     if declared is None:
-        raise AssertionError(f"env.{name} is not declared at workflow level")
-    # Workflow env is read as the string GitHub exposes, not as a boolean: an
-    # expression fed to one is a non-empty string, and `if: env.X` would read a
-    # literal 'false' as true.
-    evaluated = _evaluate(declared, github["event_name"], github["ref"], loaded)
-    return "true" if evaluated else "false"
+        declared = (loaded.get("env") or {}).get(name)
+    if declared is None:
+        raise AssertionError(
+            f"env.{name} is declared neither in the publish job nor at workflow level"
+        )
+    # Read as the string GitHub exposes, not as a boolean: a value fed to a
+    # boolean field is a non-empty string, and `if: env.X` would read a literal
+    # 'false' as true.
+    return "true" if _evaluate(declared, github, loaded) else "false"
 
 
 _EXPRESSION = re.compile(r"\$\{\{(?P<body>.*)\}\}", re.DOTALL)
