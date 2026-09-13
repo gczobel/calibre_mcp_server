@@ -1,6 +1,7 @@
 # Tool surface
 
-The tools this fork adds or changes, and the data they carry.
+The tools this fork adds or changes, and the data they carry. This file records what the surface is;
+`docs/adr/` records why it is that shape and what each decision rejected.
 
 ## Two different kinds of work
 
@@ -47,7 +48,9 @@ find_books(author?, tag?, series?, rating_min?, rating_max?, read?, limit?)
 
 No matches is `{"count": 0, "books": []}`. That wrapper exists because a bare empty list renders no
 content at all at the tool boundary, which left a caller unable to tell "nothing matched" from "the
-call failed".
+call failed". It is a deliberate break rather than an inconsistency to tidy away — the older list tools
+still return bare lists — so read [ADR-0003](adr/0003-find-books-returns-a-count-alongside-its-books.md)
+before simplifying it back.
 
 Criteria match case- and accent-insensitively, reusing the text normalization the title search already
 applies. A Spanish library has to find "García" when asked for "Garcia".
@@ -64,7 +67,12 @@ would be a breaking change for anyone already calling them.
 Clearing (`stars = 0`) deletes the book's row from `books_ratings_link`, which is Calibre's own unrated
 state: an absent link, not a stored `0`. The `ratings` dictionary row is deliberately left in place,
 because other books may share it. Clearing an already-unrated book is therefore a no-op that still
-reports `rating: null`.
+reports `rating: null`. There is no separate clearing tool on purpose: see
+[ADR-0004](adr/0004-clearing-a-rating-is-zero-stars.md).
+
+`stars` is declared strict, so `"4"` is refused as well as `false` rather than being coerced to a
+number. The boundary refuses what the `CalibreDB` seam refuses, and never more permissively: see
+[ADR-0005](adr/0005-the-tool-boundary-refuses-what-the-seam-refuses.md).
 
 Writes need the library mounted read-write and the `#read` column to exist. A missing column is an
 error naming the column. Reads tolerate its absence and report `null` instead. That asymmetry is
