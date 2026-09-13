@@ -4,9 +4,15 @@ version = "1.2.0"
 description = "An MCP server for Calibre"
 requires-python = ">=3.10"
 dependencies = [
-  "fastmcp==3.2.0",
-  "pydantic==2.11.9",
-  "python-dotenv==1.2.2",
+  # Floors, not exact pins. uv.lock is what pins the resolved versions, so an
+  # `==` here only constrains the resolver, and it has already bitten us: an
+  # exact pydantic 2.11.9 forced the Python 3.14 resolution back down to
+  # mcp 1.27.2, which carries an advisory. These floors are security minimums:
+  # fastmcp 3.2.0 is the fix for the critical advisories, and pydantic 2.12 is
+  # the lowest that lets the newer mcp resolve on 3.14.
+  "fastmcp>=3.2.0",
+  "pydantic>=2.12.0",
+  "python-dotenv>=1.2.2",
 ]
 authors = [
   { name = "Alberto Tudela", email = "ajtudela@gmail.com" }
