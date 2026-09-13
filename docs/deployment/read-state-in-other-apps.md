@@ -42,8 +42,8 @@ external write — this server's, or Calibre-Web's — reaches `metadata.db` at 
 only after the application restarts.
 
 Observed here: an MCP `mark_book_read` appeared in the Calibre-Web browser UI immediately, and in
-Calibre only after a restart. A window that has not caught up is not a failed write; check the database
-before doubting it, with the query in `docs/deployment/write-enabled-mount.md`.
+Calibre only after a restart. So an unchanged Calibre window is not proof that the write failed: check
+the database first, with the query in `docs/deployment/write-enabled-mount.md`.
 
 That same in-memory copy is the reason Calibre must not have the library open while this server writes:
 Calibre writes its copy back, and the external write is gone with no error. So quit Calibre before
