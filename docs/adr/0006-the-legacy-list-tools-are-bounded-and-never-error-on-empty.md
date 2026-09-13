@@ -46,5 +46,7 @@ Two measurements against a real library, not supposition:
   cannot precede a required one. `find_books` already did this.
 - `limit` is validated at both layers: the tool's field has `gt=0`, and `CalibreDB` validates again so the
   seam cannot be called with a nonsensical cap.
-- `get_all_tags` is left as a bare list. It is a dictionary listing with no entity filter and a bounded
-  160 rows, so neither defect applies to it.
+- `get_all_tags` was left as a bare list here, reasoning that it is a dictionary listing with no entity
+  filter and a bounded 160 rows, so neither defect applied. That reasoning weighed size and missed
+  rendering: an empty dictionary produced an empty response, which is the #19 symptom ADR-0003
+  describes. It wraps now too (#57).

@@ -143,3 +143,25 @@ def test_an_unknown_argument_returns_count_zero(
     prose assertion cannot show what the tool actually returns.
     """
     assert parse_payload(call_tool(tool, argument)) == {"count": 0, key: []}
+
+
+def test_all_tags_wraps_its_result(call_tool, parse_payload):
+    """A bare list renders nothing when empty, which a library with no tags is.
+
+    The `library` fixture starts with no tags, so this is the empty case.
+    """
+    result = call_tool("get_all_tags")
+
+    assert result.content, "an empty tag dictionary must still render content"
+    assert parse_payload(result) == {"count": 0, "tags": []}
+
+
+def test_all_tags_counts_what_it_returns(library, call_tool, parse_payload):
+    book_id = library.add_book("A Book")
+    tag_id = library.add_tag("fiction")
+    library.link_tag(book_id, tag_id)
+
+    assert parse_payload(call_tool("get_all_tags")) == {
+        "count": 1,
+        "tags": [{"id": tag_id, "name": "fiction"}],
+    }

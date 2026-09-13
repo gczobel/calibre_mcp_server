@@ -19,7 +19,7 @@ An MCP (Model Context Protocol) server that provides tools to interact with a Ca
 | **mark_book_unread**            | Mark a book as unread                                  | `book_id: int`       |
 | **set_book_rating**             | Set a book's rating (1–5 stars, or 0 to clear)         | `book_id: int, stars: int` |
 | **get_library_stats**           | Get comprehensive library statistics                   | —                    |
-| **get_all_tags**                | Get all available tags in the library                  | —                    |
+| **get_all_tags**                | Get every tag in the library, with a count             | —                    |
 
 ## Configuration
 
