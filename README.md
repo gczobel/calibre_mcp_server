@@ -242,6 +242,9 @@ Add this configuration to your application's settings (mcp.json):
 5. Update documentation as needed
 6. Submit a pull request
 
+A pull request that reports **no checks at all**, rather than a failing one, is usually conflicting
+with its base. See [`docs/ci.md`](docs/ci.md).
+
 ## License
 
 This project is licensed under the Apache 2.0 License - see the LICENSE file for details.
