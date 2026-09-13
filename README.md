@@ -152,7 +152,17 @@ export HTTP_PORT=9001
 
 ### Running from the container image
 
-An image is published on every green push to `main`:
+An image is published on every green push to `main`. A ready-to-paste compose file is at
+`docker-compose.yml`:
+
+```bash
+git clone https://github.com/gczobel/calibre_mcp_server.git
+cd calibre_mcp_server
+# set the library path on the left of the volume line first
+docker compose up -d
+```
+
+Or by hand:
 
 ```bash
 docker run --rm -p 9001:9001 \
@@ -160,6 +170,9 @@ docker run --rm -p 9001:9001 \
   -e CALIBRE_LIBRARY_PATH=/books \
   ghcr.io/gczobel/calibre_mcp_server:latest
 ```
+
+It is a plain Compose file, so `docker compose up -d` works, and any Compose-capable host or manager
+takes it unchanged. Set the library path on the left of the volume line first.
 
 Note the mount has **no `:ro`**. Read tracking writes to `metadata.db`, so a read-only mount turns the
 write tools into errors. Add `:ro` only if you will never call `mark_book_read`, `mark_book_unread` or
