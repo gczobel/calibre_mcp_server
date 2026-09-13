@@ -3,19 +3,28 @@
 ``server`` reads ``CALIBRE_LIBRARY_PATH`` while it is being imported, and the
 module is then cached process-wide, so whichever boundary test imports it first
 fixes the library for the whole session. ``bound_server`` in ``conftest`` undoes
-that by rebinding ``calibre_db`` per test — a rule nothing pinned. It holds by
-construction, and the coupling has already been reintroduced silently once: a new
-boundary module kept passing *for the wrong reason*, against the module that
-imported first, because both fixtures happened to contain a book with the same id
-and no read column.
+that by rebinding ``calibre_db`` per test. The coupling has already been
+reintroduced silently once: a new boundary module kept passing *for the wrong
+reason*, against the module that imported first, because both fixtures happened
+to contain a book with the same id and no read column.
 
-Two guards, because they fail differently. The first names the reason outright,
-so a lost rebind reads as itself rather than as four unrelated failures. The
-second is the property that actually matters — no module may depend on which one
-imported first — and it is the one that cannot be satisfied by a fixture that
-merely happens to do the right thing for the libraries the other tests build.
+That rebind is now asserted where it happens, so losing it fails every boundary
+test with the reason spelled out — which is the guard that covers each module
+automatically. This module carries the two checks a per-test assertion cannot.
+
+The first says the rule out loud: bind the module elsewhere, then assert
+``bound_server`` corrects it. That stale state is otherwise unreachable, because
+the test that imports the server first is the one that wins the race — so the
+assertion written the obvious way passes by winning the race it is meant to
+check.
+
+The second is the property no single test can cover: the modules pass in any
+order, not merely each against its own library. It is slower than the first, so
+it is confined to the modules that need it, and it catches coupling between them
+that has nothing to do with the seam.
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -24,18 +33,29 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Every module that drives the server through an in-memory client. Named here so
-# the run below is explicit about what it covers: a boundary module missing from
-# this tuple would otherwise go unpinned.
-BOUNDARY_MODULES = (
-    "tests/test_find_books_boundary.py",
-    "tests/test_rating_boundary.py",
-    "tests/test_tool_boundary.py",
-)
+# What it means for a module to drive the server through the in-memory client.
+# Found by scanning rather than listed, because the module that would need adding
+# to a list is the one nobody has a reason to open: a boundary module left out of
+# the run below is a coverage gap with no symptom.
+DRIVES_THE_SERVER = re.compile(r"\b(bound_server|call_tool)\b")
 
-# Generous: three modules of in-memory MCP calls take well under a second, and
-# the point of the limit is only that a hung child cannot hang CI instead.
+# Generous: the modules below take well under a second between them, and the
+# point of the limit is only that a hung child cannot hang CI instead.
 REVERSE_RUN_TIMEOUT = 120
+
+
+def boundary_modules() -> list[str]:
+    """Every test module that drives the server, this one excepted.
+
+    This module drives it too, and is skipped because running it would spawn
+    another run of itself.
+    """
+    return sorted(
+        str(path.relative_to(REPO_ROOT))
+        for path in (REPO_ROOT / "tests").glob("test_*.py")
+        if path.name != Path(__file__).name
+        and DRIVES_THE_SERVER.search(path.read_text())
+    )
 
 
 def test_bound_server_rebinds_the_module_to_this_tests_library(
@@ -45,9 +65,9 @@ def test_bound_server_rebinds_the_module_to_this_tests_library(
 
     The module is imported once and cached, so it arrives already pointed at
     whichever library was in the environment at that moment. Without the rebind a
-    boundary test asserts against some other test's library, which is how four
-    tests once failed without saying why — while the test that imported the
-    module first went on passing, because the stale binding was its own.
+    boundary test asserts against some other test's library — while the test that
+    imported the module first goes on passing, because the stale binding is its
+    own.
 
     ``server_bound_elsewhere`` supplies that stale state on purpose, and
     ``bound_server`` is asked for by name rather than as an argument: the stale
@@ -67,11 +87,17 @@ def test_boundary_modules_pass_in_reverse_order():
 
     A module run on its own passes even with a broken rebind, because the one
     that imports the server is the one that wins the race. So the run below is
-    the whole set, in the reverse of the order pytest collects it in.
+    every module that drives it, in the reverse of the order pytest collects them
+    in.
     """
+    modules = boundary_modules()
+    # Fail closed. A run that collected nothing is green, and a renamed binding
+    # fixture would empty this without saying so.
+    assert modules, "no boundary module found; the run below would prove nothing"
+
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pytest", "-q", *reversed(BOUNDARY_MODULES)],
+            [sys.executable, "-m", "pytest", "-q", *reversed(modules)],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

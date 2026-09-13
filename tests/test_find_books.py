@@ -7,6 +7,11 @@ accent-insensitively; rating is in whole stars; read is a boolean filter.
 import pytest
 
 
+def _ids(rows):
+    """The book ids of ``find_books`` rows, sorted, for comparing to a list."""
+    return sorted(row["id"] for row in rows)
+
+
 def test_returns_book_fields(db, add_book):
     book_id = add_book("A Book", author="Jane Doe", series="Series One")
 
@@ -22,38 +27,38 @@ def test_returns_book_fields(db, add_book):
     }]
 
 
-def test_author_criterion_filters(db, add_book, ids):
+def test_author_criterion_filters(db, add_book):
     b1 = add_book("Book One", author="Jane Doe")
     add_book("Book Two", author="John Roe")
 
-    assert ids(db().find_books(author="Jane", limit=10)) == [b1]
+    assert _ids(db().find_books(author="Jane", limit=10)) == [b1]
 
 
-def test_tag_criterion_filters(db, add_book, ids):
+def test_tag_criterion_filters(db, add_book):
     b1 = add_book("Book One", tags=["fiction"])
     add_book("Book Two", tags=["history"])
 
-    assert ids(db().find_books(tag="fiction", limit=10)) == [b1]
+    assert _ids(db().find_books(tag="fiction", limit=10)) == [b1]
 
 
-def test_series_criterion_filters(db, add_book, ids):
+def test_series_criterion_filters(db, add_book):
     b1 = add_book("Book One", series="Alpha")
     add_book("Book Two", series="Beta")
 
-    assert ids(db().find_books(series="Alpha", limit=10)) == [b1]
+    assert _ids(db().find_books(series="Alpha", limit=10)) == [b1]
 
 
-def test_criteria_combine_with_and(db, add_book, ids):
+def test_criteria_combine_with_and(db, add_book):
     b1 = add_book("Match", author="Jane Doe", tags=["fiction"])
     add_book("Author only", author="Jane Doe", tags=["history"])
     add_book("Tag only", author="John Roe", tags=["fiction"])
 
-    assert ids(
+    assert _ids(
         db().find_books(author="Jane", tag="fiction", limit=10)
     ) == [b1]
 
 
-def test_rating_range(library, db, add_book, ids):
+def test_rating_range(library, db, add_book):
     b1 = add_book("Low")
     library.set_rating(b1, 2)
     b2 = add_book("Mid")
@@ -61,18 +66,18 @@ def test_rating_range(library, db, add_book, ids):
     b3 = add_book("High")
     library.set_rating(b3, 5)
 
-    assert ids(
+    assert _ids(
         db().find_books(rating_min=3, rating_max=4, limit=10)
     ) == [b2]
 
 
-def test_rating_min_only(library, db, add_book, ids):
+def test_rating_min_only(library, db, add_book):
     b1 = add_book("Low")
     library.set_rating(b1, 2)
     b2 = add_book("High")
     library.set_rating(b2, 5)
 
-    assert ids(db().find_books(rating_min=4, limit=10)) == [b2]
+    assert _ids(db().find_books(rating_min=4, limit=10)) == [b2]
 
 
 def test_rating_returned_in_stars(library, db, add_book):
@@ -82,7 +87,7 @@ def test_rating_returned_in_stars(library, db, add_book):
     assert db().find_books(limit=10)[0]["rating"] == 4
 
 
-def test_read_true_false_and_omitted(library, db, add_book, ids):
+def test_read_true_false_and_omitted(library, db, add_book):
     col = library.add_custom_column("read", "bool")
     b1 = add_book("Read book")
     library.set_direct_value(col, b1, 1)
@@ -91,10 +96,10 @@ def test_read_true_false_and_omitted(library, db, add_book, ids):
     b3 = add_book("No row book")
     seam = db()
 
-    assert ids(seam.find_books(read=True, limit=10)) == [b1]
+    assert _ids(seam.find_books(read=True, limit=10)) == [b1]
     # A book with no row is unread, same as a stored 0.
-    assert ids(seam.find_books(read=False, limit=10)) == sorted([b2, b3])
-    assert ids(seam.find_books(limit=10)) == sorted([b1, b2, b3])
+    assert _ids(seam.find_books(read=False, limit=10)) == sorted([b2, b3])
+    assert _ids(seam.find_books(limit=10)) == sorted([b1, b2, b3])
 
 
 def test_read_is_none_without_column(db, add_book):
@@ -125,10 +130,10 @@ def test_limit_is_respected(db, add_book):
     assert len(db().find_books(limit=5)) == 5
 
 
-def test_matching_is_accent_insensitive(db, add_book, ids):
+def test_matching_is_accent_insensitive(db, add_book):
     b1 = add_book("Cien años", author="Gabriel García Márquez")
 
-    assert ids(db().find_books(author="Garcia", limit=10)) == [b1]
+    assert _ids(db().find_books(author="Garcia", limit=10)) == [b1]
 
 
 def test_rating_min_greater_than_max_errors(db):
