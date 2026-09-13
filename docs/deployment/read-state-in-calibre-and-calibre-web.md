@@ -15,7 +15,7 @@ Both apps work as designed. They read different data.
 
 To point Calibre-Web at the column:
 
-1. Create the column in Calibre first. Calibre-Web cannot create it. See `docs/read-status.md`.
+1. Create the column in Calibre first. Calibre-Web cannot create it. See `docs/read-state.md`.
 2. In Calibre-Web, open Admin, then UI Configuration, and set "Link Read/Unread Status to Calibre
    Column" to your column. The list holds `0` and every Yes/No column in the library. `0` is the
    default, and means Calibre-Web uses its own read state.
