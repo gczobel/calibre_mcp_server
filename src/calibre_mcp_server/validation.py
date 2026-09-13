@@ -271,9 +271,17 @@ def validate_positive_integer(value: Any, name: str = "value") -> int:
     return value
 
 
-def validate_rating_stars(value: Any) -> int:
+def validate_rating_stars(value: Any, allow_zero: bool = False) -> int:
     """
     Validate that a value is a whole number of stars between 1 and 5.
+
+    Parameters
+    ----------
+    value : Any
+        The candidate star count.
+    allow_zero : bool, optional
+        Accept ``0`` as well, for callers where zero means "no rating" rather
+        than "invalid". Rating bounds never allow it.
 
     Returns
     -------
@@ -283,12 +291,15 @@ def validate_rating_stars(value: Any) -> int:
     Raises
     ------
     ValueError
-        If the value is not an integer in the range 1-5.
+        If the value is not an integer in the allowed range.
     """
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError("stars must be a whole number between 1 and 5")
+    lowest = 0 if allow_zero else 1
+    message = f"stars must be a whole number between {lowest} and 5"
 
-    if value < 1 or value > 5:
-        raise ValueError("stars must be a whole number between 1 and 5")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(message)
+
+    if value < lowest or value > 5:
+        raise ValueError(message)
 
     return value
