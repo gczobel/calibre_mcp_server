@@ -7,10 +7,15 @@ dependencies = [
   # Floors, not exact pins. uv.lock is what pins the resolved versions, so an
   # `==` here only constrains the resolver, and it has already bitten us: an
   # exact pydantic 2.11.9 forced the Python 3.14 resolution back down to
-  # mcp 1.27.2, which carries an advisory. These floors are security minimums:
-  # fastmcp 3.2.0 is the fix for the critical advisories, and pydantic 2.12 is
-  # the lowest that lets the newer mcp resolve on 3.14.
-  "fastmcp>=3.2.0",
+  # mcp 1.27.2, which carries an advisory. These floors are security minimums,
+  # raised as the dependency moves rather than left where they were: fastmcp's
+  # was 3.2.0, the fix for the critical advisories, and is now 3.4.7. pydantic
+  # 2.12 stays the lowest that lets the newer mcp resolve on 3.14.
+  #
+  # The `<4` is the one deliberate ceiling, and it is load-bearing: a floor alone
+  # resolves straight to fastmcp 4, which is a different dependency tree (mcp 2,
+  # httpx2) and a real migration. Lifting it is issue #46.
+  "fastmcp>=3.4.7,<4",
   "pydantic>=2.12.0",
   "python-dotenv>=1.2.2",
 ]
