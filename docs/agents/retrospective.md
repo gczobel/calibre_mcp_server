@@ -33,7 +33,7 @@ For this repo:
 They are **zstd-compressed JSONL**. `zstd -dc <file>` works, as does Python's `compression.zstd`.
 
 Measured on 2026-09-13: 26 session directories, 27 MB compressed, and the **largest single log decompresses
-to 31 MB**. Never read one whole into context; extract.
+to 31 MB**. Extract a digest: it is the only form that fits.
 
 ## Two facts that make this tractable
 
@@ -136,8 +136,8 @@ depth-0 session**, each running the recipe above and returning the same fixed di
 digests. If the sessions are already known, `workflow` is the tool for this: it fans out by file and
 collects structured results.
 
-Tell each subagent explicitly: *do not read the log; extract from it. If you need one specific incident,
-go back with a targeted `zstd -dc … | grep`/`jq` query, not a full read.*
+Tell each subagent explicitly: *extract a digest from the log, and for one specific incident query the raw
+log with `zstd -dc … | grep` or `jq`.*
 
 ## What to look for
 
@@ -155,8 +155,11 @@ go back with a targeted `zstd -dc … | grep`/`jq` query, not a full read.*
 ## Output
 
 A ranked list of **environment** changes, each with: the change, the evidence (session id plus the record
-type or pattern), and the cost it would have saved. A ranked list, not a narrative — the point is to
-change the environment so the next session does not repeat the work.
+type or pattern), and the cost it would have saved. Ranked, so the output changes the environment rather
+than recounting the session.
+
+Write it under `/writing-for-agents`, the style guide `/retro` names: a retrospective is a document agents
+consume, and one will read it.
 
 ## Limits, so the result is not over-trusted
 

@@ -28,3 +28,8 @@ git worktree remove .worktree/<task>   # once the branch is merged
 
 What `test`, `publish` and CodeQL run on, where the image is published from, and what a pull request
 that reports no checks at all means. See `docs/ci.md`.
+
+## Session logs
+
+The sessions that worked on this repo left logs on this machine; how to read them, and the signals
+that turn them into environment changes. See `docs/agents/retrospective.md`.
