@@ -1,9 +1,9 @@
-# Read status: the column contract
+# Read state: the column contract
 
 Read state is stored in **one Calibre custom column**. Everything here depends on Calibre alone.
 
 Calibre-Web is a **compatibility reference, not a dependency**. We borrow two things from it: the
-column it expects for read status, and the semantics it reads and writes. The payoff is that if a
+column it expects for read state, and the semantics it reads and writes. The payoff is that if a
 user does run Calibre-Web, it agrees with us instead of maintaining a second, conflicting read state.
 Nothing in the install, the setup, or the runtime requires Calibre-Web to exist.
 
@@ -17,10 +17,10 @@ Nothing in the install, the setup, or the runtime requires Calibre-Web to exist.
 | constraint | `UNIQUE(book)`, `value INT NOT NULL` |
 
 `<id>` is the numeric `custom_columns.id`, assigned when the column is created. Nothing is stored on
-the `books` table; `books` is never touched by a read-status change.
+the `books` table; `books` is never touched by a read-state change.
 
 The label is configurable so a user who already keeps read state in a differently named column does
-not have to rename it. Whatever the label, the column must exist before read status can be read or
+not have to rename it. Whatever the label, the column must exist before read state can be read or
 written.
 
 ## Semantics
@@ -99,5 +99,5 @@ Either route also produces the `custom_column_<id>` table, its `UNIQUE(book)` in
 
 `bool` is one of the datatypes the current reader returns `null` for, because
 `_load_custom_columns()` only reads the link-table layout used by `normalized = 1` columns. A `#read`
-column is `normalized = 0`. **The reader must be fixed before read status is visible at all.** See
+column is `normalized = 0`. **The reader must be fixed before read state is visible at all.** See
 `docs/research.md`.

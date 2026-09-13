@@ -26,7 +26,7 @@ mounted read-write.
 - The container mounts the library read-write. The image is unchanged; only the mount is.
 - Writing is confined to `custom_column_<id>`, which fires no trigger needing Calibre's SQL functions
   (`title_sort`, `uuid4`). No UDF registration is required. Those functions are needed only by
-  triggers on `books`, which a read-status write never touches.
+  triggers on `books`, which a read-state write never touches.
 - Calibre-Web reads the column with `coalesce(value, False)`, so a missing row and a `0` both mean
   unread. We write `0` rather than deleting the row, matching Calibre-Web's own writer.
 - Two writers can touch this column: the MCP and, if bound, Calibre-Web's UI. Both are plain SQLite

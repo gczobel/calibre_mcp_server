@@ -48,7 +48,7 @@ services:
       - HTTP_HOST=0.0.0.0
       - HTTP_PORT=9001
     volumes:
-      # read-write, because the server now writes read status
+      # read-write, because the server now writes read state
       - /path/to/your/calibre/library:/books
     ports:
       - "9001:9001"
@@ -59,7 +59,7 @@ filesystem-level guarantee that the server cannot modify the library.
 
 ## Before you switch the mount
 
-1. **The `#read` column must exist.** See `docs/read-status.md`. The server cannot create it.
+1. **The `#read` column must exist.** See `docs/read-state.md`. The server cannot create it.
 2. **Back up `metadata.db`.** It is the entire blast radius: metadata writes never touch book files.
    One file to copy, and you can restore it. Calibre-Web's built-in metadata backup is controlled by
    its `schedule_metadata_backup` setting and is off by default.

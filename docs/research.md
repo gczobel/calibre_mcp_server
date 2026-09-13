@@ -1,12 +1,12 @@
 # Research notes
 
 Condensed from four longer documents that were working notes. The decisions live in `docs/adr/`, the
-contracts in `docs/tool-surface.md` and `docs/read-status.md`. This file holds only what those rest on.
+contracts in `docs/tool-surface.md` and `docs/read-state.md`. This file holds only what those rest on.
 
 ## Calibre's storage, as far as we touch it
 
 - A custom column is an auxiliary table `custom_column_<id>`: one row per book, `UNIQUE(book)`,
-  `value INT NOT NULL`. The `books` table is never touched by a read-status write.
+  `value INT NOT NULL`. The `books` table is never touched by a read-state write.
 - Calibre's triggers on that table are foreign-key checks only. The triggers that call SQL functions
   (`title_sort`, `uuid4`) are on `books`, so a custom-column write needs no UDF registration. That is
   the workaround `Xpresi/calibre-mcp` needed for title writes; we do not need it.

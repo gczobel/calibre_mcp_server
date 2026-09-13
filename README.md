@@ -63,7 +63,7 @@ TRANSPORT_MODE=http
 - **Author discovery**: Find authors and explore their complete bibliographies
 - **Series tracking**: Access books in series with proper ordering by series index
 
-## Read status
+## Read state
 
 The server can mark a book read or unread, and it reads back the rating Calibre already stores.
 
@@ -92,7 +92,7 @@ Calibre-Web is optional. It can share this read state, but that takes a setting 
 
 ## Documentation
 
-- [Read status: the column contract](docs/read-status.md): what `#read` is, and how it is read and written
+- [Read state: the column contract](docs/read-state.md): what `#read` is, and how it is read and written
 - [Read state in Calibre and Calibre-Web](docs/deployment/read-state-in-calibre-and-calibre-web.md): Calibre-Web's own read state, and why Calibre shows an old value
 - [Deploying with write access](docs/deployment/write-enabled-mount.md): the read-write mount, and what to check first
 
