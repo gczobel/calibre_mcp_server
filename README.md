@@ -152,7 +152,7 @@ export HTTP_PORT=9001
 
 ### Running from the container image
 
-An image is published on every green push to `main`. A ready-to-paste compose file is at
+An image is published on every green push to `main` or `v*` tag. A ready-to-paste compose file is at
 `docker-compose.yml`:
 
 ```bash
@@ -242,8 +242,8 @@ Add this configuration to your application's settings (mcp.json):
 5. Update documentation as needed
 6. Submit a pull request
 
-A pull request that reports **no checks at all**, rather than a failing one, is usually conflicting
-with its base. See [`docs/ci.md`](docs/ci.md).
+A pull request that reports **no checks at all**, rather than a failing one, has a cause outside CI.
+See [`docs/ci.md`](docs/ci.md).
 
 ## License
 
