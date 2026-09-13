@@ -9,7 +9,7 @@ import logging
 from typing import Dict, List, Any, Optional, NoReturn
 from typing import Annotated
 
-from .calibre_api import Book, CalibreDB
+from .calibre_api import Book, CalibreDB, DEFAULT_SEARCH_LIMIT
 from .config import config
 from .exceptions import (
     DatabaseError,
@@ -183,8 +183,9 @@ class CalibreToolHandler:
 @mcp.tool(
     name="search_books_by_title",
     description=(
-        "Search for books in the Calibre library by title pattern "
-        "(supports wildcards like %)"
+        "Search books by title. The pattern is anchored at the start: "
+        "'Python%' matches titles beginning with Python, '%Django%' "
+        "matches anywhere. Returns a count and up to limit books."
     ),
     tags={"search", "books", "title"},
     annotations={
@@ -202,8 +203,12 @@ async def search_books_by_title(
         min_length=1,
         max_length=200
     )],
-    ctx: Context
-) -> List[Dict[str, Any]]:
+    limit: Annotated[int, Field(
+        description="Maximum number of results to return",
+        gt=0
+    )] = DEFAULT_SEARCH_LIMIT,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """
     Search for books by title using pattern matching.
 
@@ -212,29 +217,25 @@ async def search_books_by_title(
     title_pattern : str
         Pattern to search in book titles. Supports SQL LIKE wildcards (%).
 
+    limit : int, optional
+        Maximum number of results, default 50.
+
     Returns
     -------
-    List[Dict[str, Any]]
-        List of matching books with ID and title.
+    Dict[str, Any]
+        ``count`` of matches and ``books``, each carrying its own
+        fields. Empty when nothing matches.
 
     Raises
     ------
     ToolError
-        If search fails or no books are found.
+        If search fails or the database cannot be read.
     """
     try:
         await ctx.info(f"Searching books by title pattern: '{title_pattern}'")
 
         validated_pattern = validate_search_parameters(title_pattern)
-        results = calibre_db.search_books_by_title(validated_pattern)
-
-        if not results:
-            await ctx.warning(
-                f"No books found matching pattern: '{validated_pattern}'"
-            )
-            raise NotFoundError(
-                "books", validated_pattern, "title pattern"
-            )
+        results = calibre_db.search_books_by_title(validated_pattern, limit)
 
         await ctx.info(f"Found {len(results)} books matching title pattern")
         formatted_results = CalibreToolHandler.format_simple_results(
@@ -244,7 +245,7 @@ async def search_books_by_title(
         await ctx.debug(
             f"Returning {len(formatted_results)} formatted results"
         )
-        return formatted_results
+        return {"count": len(formatted_results), "books": formatted_results}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
@@ -255,8 +256,9 @@ async def search_books_by_title(
 @mcp.tool(
     name="search_authors_by_name",
     description=(
-        "Search for authors in the Calibre library by name pattern "
-        "(supports wildcards like %)"
+        "Search authors by stored name. The pattern is anchored at the "
+        "start: 'Asimov%' matches, '%Asimov%' matches anywhere. Returns "
+        "a count and up to limit authors."
     ),
     tags={"search", "authors", "name"},
     annotations={
@@ -274,8 +276,12 @@ async def search_authors_by_name(
         min_length=1,
         max_length=200
     )],
-    ctx: Context
-) -> List[Dict[str, Any]]:
+    limit: Annotated[int, Field(
+        description="Maximum number of results to return",
+        gt=0
+    )] = DEFAULT_SEARCH_LIMIT,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """
     Search for authors by name using pattern matching.
 
@@ -284,29 +290,25 @@ async def search_authors_by_name(
     name_pattern : str
         Pattern to search in author names. Supports SQL LIKE wildcards (%).
 
+    limit : int, optional
+        Maximum number of results, default 50.
+
     Returns
     -------
-    List[Dict[str, Any]]
-        List of matching authors with ID and name.
+    Dict[str, Any]
+        ``count`` of matches and ``authors``, each carrying its own
+        fields. Empty when nothing matches.
 
     Raises
     ------
     ToolError
-        If search fails or no authors are found.
+        If search fails or the database cannot be read.
     """
     try:
         await ctx.info(f"Searching authors by name pattern: '{name_pattern}'")
 
         validated_pattern = validate_search_parameters(name_pattern)
-        results = calibre_db.search_authors_by_name(validated_pattern)
-
-        if not results:
-            await ctx.warning(
-                f"No authors found matching pattern: '{validated_pattern}'"
-            )
-            raise NotFoundError(
-                "authors", validated_pattern, "name pattern"
-            )
+        results = calibre_db.search_authors_by_name(validated_pattern, limit)
 
         await ctx.info(f"Found {len(results)} authors matching name pattern")
         formatted_results = CalibreToolHandler.format_simple_results(results)
@@ -314,7 +316,7 @@ async def search_authors_by_name(
         await ctx.debug(
             f"Returning {len(formatted_results)} formatted results"
         )
-        return formatted_results
+        return {"count": len(formatted_results), "authors": formatted_results}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
@@ -324,7 +326,11 @@ async def search_authors_by_name(
 
 @mcp.tool(
     name="get_books_by_author",
-    description="Get all books by a specific author name",
+    description=(
+        "Get books by an exact author name, matched accent- and "
+        "case-insensitively and capped by limit. Use the author ID tool "
+        "when a name is ambiguous."
+    ),
     tags={"search", "books", "author"},
     annotations={
         "title": "Get Books by Author",
@@ -338,8 +344,12 @@ async def get_books_by_author(
         min_length=1,
         max_length=200
     )],
-    ctx: Context
-) -> List[Dict[str, Any]]:
+    limit: Annotated[int, Field(
+        description="Maximum number of results to return",
+        gt=0
+    )] = DEFAULT_SEARCH_LIMIT,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """
     Get detailed information about all books by a specific author.
 
@@ -348,21 +358,25 @@ async def get_books_by_author(
     author_name : str
         Exact name of the author.
 
+    limit : int, optional
+        Maximum number of results, default 50.
+
     Returns
     -------
-    List[Dict[str, Any]]
-        List of books with detailed information including series.
+    Dict[str, Any]
+        ``count`` of matches and ``books``, each carrying its own
+        fields. Empty when nothing matches.
 
     Raises
     ------
     ToolError
-        If author not found or database error occurs.
+        If the database cannot be read.
     """
     try:
         await ctx.info(f"Getting books by author: '{author_name}'")
 
         validated_name = validate_search_parameters(author_name)
-        results = calibre_db.get_books_by_author(validated_name)
+        results = calibre_db.get_books_by_author(validated_name, limit)
 
         if not results:
             await ctx.warning(f"No books found for author: '{validated_name}'")
@@ -380,7 +394,7 @@ async def get_books_by_author(
             })
 
         await ctx.debug(f"Returning {len(books)} book records")
-        return books
+        return {"count": len(books), "books": books}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
@@ -390,7 +404,7 @@ async def get_books_by_author(
 
 @mcp.tool(
     name="get_books_by_author_id",
-    description="Get all books by a specific author using their ID",
+    description="Get books by author ID, capped by limit.",
     tags={"search", "books", "author", "id"},
     annotations={
         "title": "Get Books by Author ID",
@@ -403,8 +417,12 @@ async def get_books_by_author_id(
         description="Unique ID of the author in the Calibre database",
         gt=0
     )],
-    ctx: Context
-) -> List[Dict[str, Any]]:
+    limit: Annotated[int, Field(
+        description="Maximum number of results to return",
+        gt=0
+    )] = DEFAULT_SEARCH_LIMIT,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """
     Get detailed information about all books by a specific author ID.
 
@@ -413,21 +431,25 @@ async def get_books_by_author_id(
     author_id : int
         Unique ID of the author in the database.
 
+    limit : int, optional
+        Maximum number of results, default 50.
+
     Returns
     -------
-    List[Dict[str, Any]]
-        List of books with detailed information including series.
+    Dict[str, Any]
+        ``count`` of matches and ``books``, each carrying its own
+        fields. Empty when nothing matches.
 
     Raises
     ------
     ToolError
-        If author not found or database error occurs.
+        If the database cannot be read.
     """
     try:
         await ctx.info(f"Getting books by author ID: {author_id}")
 
         validated_id = validate_positive_integer(author_id, "author_id")
-        results = calibre_db.get_books_by_author_id(validated_id)
+        results = calibre_db.get_books_by_author_id(validated_id, limit)
 
         await ctx.info(f"Found {len(results)} books by author ID")
 
@@ -442,7 +464,7 @@ async def get_books_by_author_id(
             })
 
         await ctx.debug(f"Returning {len(books)} book records")
-        return books
+        return {"count": len(books), "books": books}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
@@ -452,7 +474,10 @@ async def get_books_by_author_id(
 
 @mcp.tool(
     name="get_books_by_series",
-    description="Get all books in a specific series, ordered by series index",
+    description=(
+        "Get the books in a series, ordered by series index and capped "
+        "by limit."
+    ),
     tags={"search", "books", "series"},
     annotations={
         "title": "Get Books by Series",
@@ -466,8 +491,12 @@ async def get_books_by_series(
         min_length=1,
         max_length=200
     )],
-    ctx: Context
-) -> List[Dict[str, Any]]:
+    limit: Annotated[int, Field(
+        description="Maximum number of results to return",
+        gt=0
+    )] = DEFAULT_SEARCH_LIMIT,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """
     Get all books in a specific series ordered by series index.
 
@@ -476,21 +505,25 @@ async def get_books_by_series(
     series_name : str
         Exact name of the series.
 
+    limit : int, optional
+        Maximum number of results, default 50.
+
     Returns
     -------
-    List[Dict[str, Any]]
-        List of books in series order with title and series index.
+    Dict[str, Any]
+        ``count`` of matches and ``books``, each carrying its own
+        fields. Empty when nothing matches.
 
     Raises
     ------
     ToolError
-        If series not found or database error occurs.
+        If the database cannot be read.
     """
     try:
         await ctx.info(f"Getting books in series: '{series_name}'")
 
         validated_name = validate_search_parameters(series_name)
-        results = calibre_db.get_books_by_series(validated_name)
+        results = calibre_db.get_books_by_series(validated_name, limit)
 
         await ctx.info(f"Found {len(results)} books in series")
 
@@ -504,7 +537,7 @@ async def get_books_by_series(
             })
 
         await ctx.debug(f"Returning {len(books)} series books")
-        return books
+        return {"count": len(books), "books": books}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
@@ -514,7 +547,11 @@ async def get_books_by_series(
 
 @mcp.tool(
     name="get_books_by_tag",
-    description="Get all books with a specific tag",
+    description=(
+        "Get books carrying an exact tag name, capped by limit. A common "
+        "tag matches thousands of books; find_books(tag=...) is the "
+        "bounded alternative."
+    ),
     tags={"search", "books", "tags"},
     annotations={
         "title": "Get Books by Tag",
@@ -528,8 +565,12 @@ async def get_books_by_tag(
         min_length=1,
         max_length=100
     )],
-    ctx: Context
-) -> List[Dict[str, Any]]:
+    limit: Annotated[int, Field(
+        description="Maximum number of results to return",
+        gt=0
+    )] = DEFAULT_SEARCH_LIMIT,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """
     Get detailed information about all books with a specific tag.
 
@@ -538,21 +579,25 @@ async def get_books_by_tag(
     tag_name : str
         Exact name of the tag.
 
+    limit : int, optional
+        Maximum number of results, default 50.
+
     Returns
     -------
-    List[Dict[str, Any]]
-        List of books with detailed information including authors.
+    Dict[str, Any]
+        ``count`` of matches and ``books``, each carrying its own
+        fields. Empty when nothing matches.
 
     Raises
     ------
     ToolError
-        If tag not found or database error occurs.
+        If the database cannot be read.
     """
     try:
         await ctx.info(f"Getting books with tag: '{tag_name}'")
 
         validated_name = validate_search_parameters(tag_name, 100)
-        results = calibre_db.get_books_by_tag(validated_name)
+        results = calibre_db.get_books_by_tag(validated_name, limit)
 
         await ctx.info(f"Found {len(results)} books with tag")
 
@@ -567,7 +612,7 @@ async def get_books_by_tag(
             })
 
         await ctx.debug(f"Returning {len(books)} tagged books")
-        return books
+        return {"count": len(books), "books": books}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
@@ -578,8 +623,9 @@ async def get_books_by_tag(
 @mcp.tool(
     name="search_books_by_tag_pattern",
     description=(
-        "Search for books with tags matching a pattern "
-        "(supports wildcards like %)"
+        "Find books whose tags match a pattern, anchored at the start. "
+        "A common tag matches thousands of books, so the result is capped "
+        "by limit; find_books(tag=...) is the bounded alternative."
     ),
     tags={"search", "books", "tags", "pattern"},
     annotations={
@@ -597,8 +643,12 @@ async def search_books_by_tag_pattern(
         min_length=1,
         max_length=100
     )],
-    ctx: Context
-) -> List[Dict[str, Any]]:
+    limit: Annotated[int, Field(
+        description="Maximum number of results to return",
+        gt=0
+    )] = DEFAULT_SEARCH_LIMIT,
+    ctx: Optional[Context] = None
+) -> Dict[str, Any]:
     """
     Search for books with tags matching a pattern.
 
@@ -607,10 +657,14 @@ async def search_books_by_tag_pattern(
     tag_pattern : str
         Pattern to search in tag names. Supports SQL LIKE wildcards (%).
 
+    limit : int, optional
+        Maximum number of results, default 50.
+
     Returns
     -------
-    List[Dict[str, Any]]
-        List of books with matching tag patterns.
+    Dict[str, Any]
+        ``count`` of matches and ``books``, each carrying its own
+        fields. Empty when nothing matches.
 
     Raises
     ------
@@ -621,7 +675,7 @@ async def search_books_by_tag_pattern(
         await ctx.info(f"Searching books by tag pattern: '{tag_pattern}'")
 
         validated_pattern = validate_search_parameters(tag_pattern, 100)
-        results = calibre_db.search_books_by_tag(validated_pattern)
+        results = calibre_db.search_books_by_tag(validated_pattern, limit)
 
         await ctx.info(f"Found {len(results)} books matching tag pattern")
 
@@ -636,7 +690,7 @@ async def search_books_by_tag_pattern(
             })
 
         await ctx.debug(f"Returning {len(books)} pattern-matched books")
-        return books
+        return {"count": len(books), "books": books}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
