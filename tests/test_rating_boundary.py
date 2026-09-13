@@ -8,8 +8,6 @@ constraint decides whether ``stars=0`` reaches that seam at all.
 import pytest
 from fastmcp.exceptions import ToolError
 
-from calibre_mcp_server.calibre_api import Book
-
 
 def test_zero_stars_clears_an_existing_rating(library, call_tool, parse_payload):
     book_id = library.add_book("A Book")
@@ -20,7 +18,7 @@ def test_zero_stars_clears_an_existing_rating(library, call_tool, parse_payload)
     assert parse_payload(result) == {"book_id": book_id, "rating": None}
 
 
-def test_boolean_stars_are_rejected_and_change_nothing(library, call_tool):
+def test_boolean_stars_are_rejected_and_change_nothing(library, book, call_tool):
     """``false`` must not read as ``0``: that would clear a rating by accident."""
     book_id = library.add_book("A Book")
     library.set_rating(book_id, 4)
@@ -28,7 +26,7 @@ def test_boolean_stars_are_rejected_and_change_nothing(library, call_tool):
     with pytest.raises(ToolError):
         call_tool("set_book_rating", {"book_id": book_id, "stars": False})
 
-    assert Book(book_id, str(library.path)).rating == 4
+    assert book(book_id).rating == 4
 
 
 def test_boundary_sets_one_to_five_and_refuses_the_rest(

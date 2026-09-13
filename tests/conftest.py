@@ -5,6 +5,10 @@ against a minimal Calibre-like ``metadata.db`` built in a temp directory. The
 schema mirrors the tables the server actually queries, so a test never depends
 on a real Calibre install.
 
+Both seams take a library path plus configuration of their own, so a test that
+builds one asks for ``db`` or ``book`` here rather than repeating the
+construction — the same argument as the tool-boundary fixtures below.
+
 Boundary tests need more: they drive the server module through an in-memory MCP
 client, so this module also owns how a server gets bound to a fixture library.
 """
@@ -17,7 +21,7 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-from calibre_mcp_server.calibre_api import CalibreDB
+from calibre_mcp_server.calibre_api import Book, CalibreDB
 
 
 # The subset of Calibre's schema the server touches. Custom-column tables are
@@ -253,11 +257,87 @@ def library(tmp_path):
     return CalibreLibrary(tmp_path / "lib")
 
 
+# -- CalibreDB seam ------------------------------------------------------
+#
+# The two classes under test both take a library path plus configuration of
+# their own, and the per-test data (which book) is an argument rather than a
+# fixture, so each is a factory. ``db()`` and ``book(book_id)`` are the
+# unconfigured cases.
+#
+# The plain helpers below are here for the same reason as the factories: a
+# module that needs one should find it already written, not write a sixth copy.
+
+
+@pytest.fixture
+def db(library):
+    """The ``CalibreDB`` seam over this test's fixture library.
+
+    ``read_column_label`` is the configuration a test varies; everything else
+    keeps the defaults the server itself would construct with.
+    """
+    def _db(**kwargs):
+        return CalibreDB(str(library.path), **kwargs)
+
+    return _db
+
+
+@pytest.fixture
+def book(library):
+    """A ``Book`` over this test's fixture library, for the given book id."""
+    def _book(book_id, **kwargs):
+        return Book(book_id, str(library.path), **kwargs)
+
+    return _book
+
+
+@pytest.fixture
+def add_book(library):
+    """Insert a book, link the metadata given, and return its id.
+
+    ``CalibreLibrary.add_book`` writes the row; this also links the author,
+    series and tags that ``find_books`` criteria match on.
+    """
+    def _add_book(title, author=None, series=None, tags=None):
+        book_id = library.add_book(title)
+        if author:
+            library.link_author(book_id, library.add_author(author))
+        if series:
+            library.link_series(book_id, library.add_series(series))
+        for tag in tags or []:
+            library.link_tag(book_id, library.add_tag(tag))
+        return book_id
+
+    return _add_book
+
+
+@pytest.fixture
+def ids():
+    """The book ids of ``find_books`` rows, sorted, for comparing to a list."""
+    return lambda rows: sorted(row["id"] for row in rows)
+
+
+@pytest.fixture
+def direct_column_value(library):
+    """The stored value of a direct-layout custom column, read by raw SQL.
+
+    Below the reader on purpose: an assertion about what a write stored must not
+    go through the reader it is meant to be checking.
+    """
+    def _value(column_id, book_id):
+        rows = library.query(
+            f"SELECT value FROM custom_column_{column_id} WHERE book = ?",
+            (book_id,),
+        )
+        return rows[0]["value"] if rows else None
+
+    return _value
+
+
 # -- tool boundary -------------------------------------------------------
 
 
 @pytest.fixture
-def bound_server(library, monkeypatch):
+def bound_server(library, db, monkeypatch):
     """The server module, bound to this test's fixture library.
 
     ``config`` validates at import time, so the environment variable has to be
@@ -271,7 +351,7 @@ def bound_server(library, monkeypatch):
 
     import calibre_mcp_server.server as server
 
-    monkeypatch.setattr(server, "calibre_db", CalibreDB(str(library.path)))
+    monkeypatch.setattr(server, "calibre_db", db())
     return server
 
 
