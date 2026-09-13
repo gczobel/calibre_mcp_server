@@ -8,7 +8,9 @@ permissions:
 
 jobs:
   auto-merge:
-    if: github.actor == 'dependabot[bot]'
+    # Keyed on the pull request's author rather than github.actor, so the job
+    # still matches when a later push to the branch is what triggers the run.
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       # No age check here on purpose. Dependabot's own cooldown withholds a
