@@ -5,9 +5,7 @@ The tools this fork adds or changes, and the data they carry.
 ## Two different kinds of work
 
 **Exposing what Calibre already has.** Rating has always been stored; the server has simply never
-returned it. So have `timestamp`, `last_modified`, `uuid` and the ebook formats on disk. And custom
-columns using Calibre's non-link storage layout (bool, int, float, date, long text, composite) return
-`null` today whatever is stored in them. None of this is a new feature; it is the server
+returned it. So have `timestamp`, `last_modified`, `uuid` and the ebook formats on disk. None of this is a new feature; it is the server
 under-reporting a library that already holds the data.
 
 **Adding what does not exist.** Calibre has no read field. `#read` is genuinely new data, needs a
@@ -29,8 +27,6 @@ stars and convert at the boundary, so a stored value never leaks into a tool's a
 - `read`: `true`, `false`, or `null` when the library has no read column. `null` means "no read
   tracking here", which is not the same as unread, and the distinction must survive into the result.
 - `rating`: whole stars 1 to 5, or `null` when unrated.
-
-Both stay invisible until the custom-column reader is fixed for the non-link layout.
 
 ## Finding books
 
