@@ -46,7 +46,12 @@ find_books(author?, tag?, series?, rating_min?, rating_max?, read?, limit?)
   needs no different shape
 - `read`: `true` for read only, `false` for unread only, omitted for both
 - `limit` has a small default, so an omitted parameter cannot return a library
-- returns rows carrying `id`, `title`, `author`, `series`, `rating`, `read`
+- returns `count` alongside `books`, each row carrying `id`, `title`, `author`, `series`, `rating`,
+  `read`
+
+No matches is `{"count": 0, "books": []}`. That wrapper exists because a bare empty list renders no
+content at all at the tool boundary, which left a caller unable to tell "nothing matched" from "the
+call failed".
 
 Criteria match case- and accent-insensitively, reusing the text normalization the title search already
 applies. A Spanish library has to find "García" when asked for "Garcia".

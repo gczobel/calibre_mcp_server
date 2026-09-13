@@ -14,7 +14,7 @@ An MCP (Model Context Protocol) server that provides tools to interact with a Ca
 | **get_books_by_tag**            | Get all books with a specific tag                      | `tag_name: str`      |
 | **search_books_by_tag_pattern** | Search books by tag pattern with wildcards             | `tag_pattern: str`   |
 | **get_book_details**            | Get complete details for a specific book (incl. read, rating) | `book_id: int` |
-| **find_books**                  | Find books by author, tag, series, rating, read state  | `author?, tag?, series?, rating_min?, rating_max?, read?, limit?` |
+| **find_books**                  | Find books by author, tag, series, rating, read state; returns count and matches | `author?, tag?, series?, rating_min?, rating_max?, read?, limit?` |
 | **mark_book_read**              | Mark a book as read                                    | `book_id: int`       |
 | **mark_book_unread**            | Mark a book as unread                                  | `book_id: int`       |
 | **set_book_rating**             | Set a book's rating (1–5 stars)                        | `book_id: int, stars: int` |
@@ -57,7 +57,7 @@ TRANSPORT_MODE=http
 - **Advanced search capabilities**: Search books by title, author, series, and tags with wildcard support
 - **Comprehensive metadata**: Retrieve complete book information including publication dates, series info, and tags
 - **Read state and rating**: Mark books read or unread, set a 1–5 star rating, and see both on book details
-- **Combined filtering**: `find_books` narrows by author, tag, series, rating range, and read state at once
+- **Combined filtering**: `find_books` narrows by author, tag, series, rating range, and read state at once, and reports a count so an empty result is explicit
 - **Library statistics**: Get insights into your Calibre library with comprehensive statistics
 - **Tag management**: Browse and search through all available tags in your library
 - **Author discovery**: Find authors and explore their complete bibliographies
