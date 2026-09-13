@@ -6,6 +6,18 @@ propose improvements to the **environment** rather than to any one change.
 `/retro` supplies the improvement categories. This file supplies the log legwork, which is the part that
 is not obvious and that a naive attempt gets wrong.
 
+## Ask the human first
+
+Before touching a log, ask what they already know. Their verdict is free, their memory covers sessions on
+other machines and other repos, and it is the only source that can contradict the logs.
+
+Worked example from this repo: asked which skills had helped, the maintainer named one outright. The logs
+say it was **offered in every one of the seven sessions and loaded in none** — the model read its
+catalogue entry, weighed it ("possibly unslop for writing README/docs … actually, let me focus") and moved
+on. So the log-only answer ("never used, therefore irrelevant") would have been both wrong and
+unactionable, while the maintainer's answer plus the log turns it into a concrete finding: a skill whose
+description says it applies to every reply, that nothing causes to fire.
+
 ## Where the logs are
 
 ```
@@ -56,6 +68,18 @@ remaining ~14%, and skipping is what turns an unreadable log into a digest.
 sessions: `user` 223, `agent-instructions` 34, `skill-invocation` 22, `subagent-settled` 15, `plugin` 14,
 `skill-catalog` 11, `subagent-report` 11. Only `user` is the person; the rest is ceremony, and the ratio
 between them is itself a retrospective finding.
+
+**Offered is not used, and used is not always recorded.** Skill usage needs three separate signals:
+
+| signal | where | means |
+| --- | --- | --- |
+| offered | `user/message` with `source.kind: skill-catalog` | the skill was in the catalogue |
+| loaded | `user/message` with `source.kind: skill-invocation` | the model loaded it |
+| considered | the skill's name in `assistant/message` or `reasoning` | it was weighed, and possibly acted on without loading |
+
+A skill the *human* invokes with a slash command may leave no `skill-invocation` record at all, so counting
+only those rows under-reports usage. Count all three, and treat "offered 7 times, loaded 0" as a finding
+rather than an absence.
 
 ## Extraction recipe
 
@@ -125,7 +149,7 @@ go back with a targeted `zstd -dc … | grep`/`jq` query, not a full read.*
 | Automated checks | clusters of `[exit code: N]` or `isError` that a lint, test or type check would have caught earlier |
 | Navigation | steps before the first correct file reference; repeated failed reads of a path that does not exist |
 | Coding standards / reviewer rules | claims the agent wrote that the code contradicts — this repo has two on record: "anchored at the start" and "accent-insensitive" |
-| No-ops and steering size | injected messages against human turns, and instructions never acted on |
+| No-ops and steering size | injected messages against human turns; instructions never acted on; skills offered in the catalogue and never loaded |
 | Information access | workarounds for missing information, e.g. a live check hand-rolled through HTTP because the MCP bridge held a stale session |
 
 ## Output
