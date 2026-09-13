@@ -71,7 +71,7 @@ Read state lives in a Calibre custom column **you create** — a **Yes/No** colu
 `read` (Calibre shows it as `#read`). The server writes `1` for read and `0` for unread, and a book
 with no entry counts as unread. It needs nothing but Calibre.
 
-**Create the column in Calibre first:**
+Create the column in Calibre first:
 
 1. **Preferences → Add your own columns → Add custom column**
 2. pick **Yes/No**
@@ -84,17 +84,17 @@ If the column is missing, reading still works — a book just reports no read st
 stricter: `mark_book_read` and `mark_book_unread` refuse and name the missing column.
 
 Read state is written back to `metadata.db`, so mount the library read-write, and don't have Calibre
-itself open on the same library while you write — it keeps showing the old value until it restarts.
+itself open on the same library while you write. Calibre keeps showing the old value until it restarts.
 See [deploying with write access](docs/deployment/write-enabled-mount.md).
 
-**Calibre-Web** is optional, and it can share this one read state — that takes a setting on its side.
-See [read state in other apps](docs/deployment/read-state-in-other-apps.md).
+Calibre-Web is optional. It can share this read state, but that takes a setting on its side. See
+[read state in Calibre and Calibre-Web](docs/deployment/read-state-in-calibre-and-calibre-web.md).
 
 ## Documentation
 
-- [Read status: the column contract](docs/read-status.md) — what `#read` is, and how it is read and written
-- [Read state in other apps](docs/deployment/read-state-in-other-apps.md) — Calibre-Web, and why Calibre can look stale
-- [Deploying with write access](docs/deployment/write-enabled-mount.md) — the read-write mount, and what to check first
+- [Read status: the column contract](docs/read-status.md): what `#read` is, and how it is read and written
+- [Read state in Calibre and Calibre-Web](docs/deployment/read-state-in-calibre-and-calibre-web.md): Calibre-Web's own read state, and why Calibre shows an old value
+- [Deploying with write access](docs/deployment/write-enabled-mount.md): the read-write mount, and what to check first
 
 ## Installation
 

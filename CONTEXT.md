@@ -45,6 +45,11 @@ The state of a library that has no read column. It is deliberately not the same 
 reported as `null` rather than `false`.
 _Avoid_: using unread as a synonym
 
+**Calibre-Web's read state**:
+The read state Calibre-Web keeps for itself, per user, while it is not pointed at the read column. It
+is separate state, not ours, and the two can disagree about the same book.
+_Avoid_: saying "read state" unqualified when either one could be meant
+
 **Rating**:
 A book's score, 1 to 5 whole stars at the tool surface. Calibre holds the same score doubled, 0 to 10.
 _Avoid_: score, stars out of ten
