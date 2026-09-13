@@ -18,9 +18,9 @@ column the user creates, and is the only reason a write path exists.
 **1 to 5 whole stars, no halves.** That is what Calibre's GUI shows and what Calibre-Web shows: its star
 widget renders `rating / 2` filled stars padded to five.
 
-Calibre stores ratings doubled, 0 to 10, in `ratings` plus `books_ratings_link`. A stored `0` means no
-rating, and Calibre deletes both rows rather than keeping one. Tools speak in stars and convert at the
-boundary, so a stored value never leaks into a tool's arguments or result.
+Calibre stores ratings doubled, 0 to 10, in `ratings` plus `books_ratings_link`. A book's rating *is*
+its row in `books_ratings_link`, so "unrated" is an absent row there, not a stored `0`. Tools speak in
+stars and convert at the boundary, so a stored value never leaks into a tool's arguments or result.
 
 ## Reading a book
 
@@ -63,11 +63,12 @@ would be a breaking change for anyone already calling them.
 
 - `mark_book_read(book_id)`, idempotent
 - `mark_book_unread(book_id)`, idempotent
-- `set_book_rating(book_id, stars)`, 1 to 5, or `0` to clear
+- `set_book_rating(book_id, stars)`, 1 to 5, or `0` to clear, idempotent
 
 Clearing (`stars = 0`) deletes the book's row from `books_ratings_link`, which is Calibre's own unrated
 state: an absent link, not a stored `0`. The `ratings` dictionary row is deliberately left in place,
-because other books may share it.
+because other books may share it. Clearing an already-unrated book is therefore a no-op that still
+reports `rating: null`.
 
 Writes need the library mounted read-write and the `#read` column to exist. A missing column is an
 error naming the column. Reads tolerate its absence and report `null` instead. That asymmetry is
