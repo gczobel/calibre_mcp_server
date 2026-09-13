@@ -9,7 +9,7 @@ import sqlite3
 import pytest
 
 import calibre_mcp_server.calibre_api as calibre_api
-from calibre_mcp_server.calibre_api import CalibreDB
+from calibre_mcp_server.calibre_api import Book, CalibreDB
 from calibre_mcp_server.exceptions import ConfigurationError, DatabaseError, NotFoundError
 
 
@@ -127,11 +127,36 @@ def test_set_rating_replaces_existing(library):
     assert rows[0]["rating"] == 10
 
 
+def test_set_rating_zero_clears_the_rating(library):
+    book_id = library.add_book("A Book")
+    db = _db(library)
+    db.set_book_rating(book_id, 4)
+
+    result = db.set_book_rating(book_id, 0)
+
+    assert result == {"book_id": book_id, "rating": None}
+    # Calibre's unrated state is an absent link row, not a zero rating.
+    assert library.query(
+        "SELECT rating FROM books_ratings_link WHERE book = ?", (book_id,)
+    ) == []
+    assert Book(book_id, str(library.path)).rating is None
+
+
+def test_cleared_rating_drops_out_of_a_rating_filter(library):
+    book_id = library.add_book("A Book")
+    db = _db(library)
+    db.set_book_rating(book_id, 4)
+
+    db.set_book_rating(book_id, 0)
+
+    assert db.find_books(rating_min=1, limit=10) == []
+
+
 def test_set_rating_invalid_stars(library):
     book_id = library.add_book("A Book")
     db = _db(library)
 
-    for bad in (0, 6, -1, 2.5, "4", None, True):
+    for bad in (6, -1, 2.5, "4", None, True):
         with pytest.raises(ValueError):
             db.set_book_rating(book_id, bad)
 
