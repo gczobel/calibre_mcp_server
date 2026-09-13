@@ -64,8 +64,8 @@ set, Calibre-Web's read/unread button writes this column instead of its private 
 table, and both the MCP and the Calibre-Web UI operate on the same state. Left unset, Calibre-Web
 keeps its own separate read state, which will disagree with this column.
 
-How to bind it — and why Calibre keeps showing stale data — is in
-`docs/deployment/read-state-in-other-apps.md`.
+How to point Calibre-Web at the column, and why Calibre keeps showing the old value, is in
+`docs/deployment/read-state-in-calibre-and-calibre-web.md`.
 
 ## SQL
 

@@ -81,5 +81,6 @@ SELECT value FROM custom_column_<id> WHERE book = <book_id>
 `1` means the write landed. If the column exists and the write returned success but this is empty, the
 write did not commit.
 
-The value is written, but Calibre may still show the old one: it keeps metadata in memory and only
-picks up an outside write after a restart. See `docs/deployment/read-state-in-other-apps.md`.
+The value is written, but Calibre may still show the old one. Calibre keeps metadata in memory and
+picks up an outside write only after a restart. See
+`docs/deployment/read-state-in-calibre-and-calibre-web.md`.
