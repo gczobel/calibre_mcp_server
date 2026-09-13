@@ -18,7 +18,7 @@ The symptom is quiet, which is what makes it worth recognising: **nothing failed
 empty, or the required `test` check sits at `Expected — Waiting for status to be reported` and stays
 there. A check that never reports looks exactly like a stuck or misconfigured check.
 
-Two causes, and they are easy to confuse.
+Three causes, and they are easy to confuse.
 
 ### It conflicts with its base
 
@@ -47,11 +47,32 @@ whose lower layers were cut before that filter was removed still inherits it.
 checks. Testing each layer on its own is the point of stacking: without it a defect in a middle layer
 is first caught at the bottom of the merge sequence, which is the moment the stack exists to de-risk.
 
+### It comes from a fork, and the contributor is new
+
+GitHub creates the runs and holds them in `action_required` until a maintainer approves them. `gh pr
+checks` reports nothing while they wait, so the symptom is identical to the two above — but the remedy
+is the opposite: **the branch is fine.** What separates this one is the branch state and the run list:
+
+```bash
+gh pr view <n> --json mergeStateStatus    # BLOCKED, not CONFLICTING
+gh run list --branch <head-branch>        # action_required
+```
+
+**Fix: approve the runs.** *Approve and run workflows* on the pull request, or:
+
+```bash
+gh api --method POST repos/{owner}/{repo}/actions/runs/<run-id>/approve
+```
+
+This is the default for a first contribution from a fork, not a defect. It is worth recognising because
+rebasing — the fix for the two causes above — does nothing here, and the branch looks healthy the whole
+time.
+
 ## Publishing is gated on the ref
 
 `publish` pushes only when `github.ref` is `main` or a `v*` tag. A dispatch on a feature branch still
 builds the image, and pushes nothing — which makes `Run workflow` a safe way to check a branch's
-Dockerfile, and a way to get a branch built while a pull request is stuck for either reason above.
+Dockerfile, and a way to get a branch built while a pull request is stuck for any of the reasons above.
 
 The gate matters because the homelab pulls `:latest`. A run that published from a branch would replace
 the deployed server with unreviewed code, silently. The gate used to be
