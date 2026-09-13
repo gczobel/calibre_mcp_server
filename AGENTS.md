@@ -12,7 +12,7 @@ Five canonical roles: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-fo
 
 Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
-### CI
+## CI
 
 What `test`, `publish` and CodeQL run on, where the image is published from, and what a pull request
 that reports no checks at all means. See `docs/ci.md`.
