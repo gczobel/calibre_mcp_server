@@ -356,6 +356,29 @@ def bound_server(library, db, monkeypatch):
 
 
 @pytest.fixture
+def server_bound_elsewhere(tmp_path, monkeypatch):
+    """Bind the server module to a library that is not this test's.
+
+    ``bound_server`` only has work to do when the module is already bound
+    somewhere else, and it always is: the import is cached process-wide, so
+    whichever test imported first fixed the binding. A test cannot otherwise
+    reach that state, because the test that imports first is the one that wins
+    the race — so this fixture produces it deliberately, for the one test
+    asserting that the rebind happens.
+
+    Returns the library it bound the module to, so that test can assert its
+    premise rather than assume it.
+    """
+    elsewhere = CalibreLibrary(tmp_path / "elsewhere")
+    monkeypatch.setenv("CALIBRE_LIBRARY_PATH", str(elsewhere.path))
+
+    import calibre_mcp_server.server as server
+
+    monkeypatch.setattr(server, "calibre_db", CalibreDB(str(elsewhere.path)))
+    return elsewhere
+
+
+@pytest.fixture
 def call_tool(bound_server):
     """Call one tool, returning the raw result for assertions on its content.
 
