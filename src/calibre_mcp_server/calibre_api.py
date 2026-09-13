@@ -533,7 +533,7 @@ class Book:
         ``custom_column_<id>`` dictionary table.
         """
         link_table = f'books_custom_column_{column_id}_link'
-        direct_table = f'custom_column_{column_id}'
+        dictionary_table = f'custom_column_{column_id}'
 
         cursor.execute("""
             SELECT name FROM sqlite_master
@@ -562,16 +562,16 @@ class Book:
                     cursor.execute("""
                         SELECT name FROM sqlite_master
                         WHERE type='table' AND name=?
-                    """, (direct_table,))
+                    """, (dictionary_table,))
 
                     if cursor.fetchone():
                         cursor.execute(
-                            f"SELECT value FROM {direct_table} WHERE id = ?",
+                            f"SELECT value FROM {dictionary_table} WHERE id = ?",
                             (int(link_value),)
                         )
-                        direct_result = cursor.fetchone()
-                        if direct_result:
-                            resolved_value = direct_result[0]
+                        dictionary_result = cursor.fetchone()
+                        if dictionary_result:
+                            resolved_value = dictionary_result[0]
             except (ValueError, TypeError):
                 # Use original value if conversion fails
                 pass
