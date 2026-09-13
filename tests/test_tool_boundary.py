@@ -1,9 +1,10 @@
-"""Tool-boundary test: env var set before import, in-memory client.
+"""Tool-boundary tests: env var set before import, in-memory client.
 
-This is the one test that imports the server module, because that import has
-the side effect of reading ``CALIBRE_LIBRARY_PATH`` and initializing the
-database. It verifies the new tools are listed and that a failing write
-arrives as a tool error.
+These tests import the server module, because that import has the side effect of
+reading ``CALIBRE_LIBRARY_PATH`` and initializing the database. The module is
+cached process-wide, so whichever test imports it first fixes the library path
+for the whole session; every boundary test therefore rebinds ``calibre_db`` to
+its own fixture library instead of depending on import order.
 """
 
 import asyncio
@@ -11,6 +12,8 @@ import asyncio
 import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
+
+from calibre_mcp_server.calibre_api import CalibreDB
 
 EXPECTED_TOOLS = {
     "mark_book_read",
@@ -26,6 +29,8 @@ def test_tools_listed_and_failure_arrives_as_tool_error(library, monkeypatch):
 
     # Env var must be set before the first import of the server module.
     import calibre_mcp_server.server as server
+
+    monkeypatch.setattr(server, "calibre_db", CalibreDB(str(library.path)))
 
     async def run():
         async with Client(server.mcp) as client:
