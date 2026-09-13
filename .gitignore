@@ -223,3 +223,13 @@ __marimo__/
 *.vsix
 
 .uv-cache/
+
+# Agent tooling and local caches. Skills are installed per harness (see
+# skills-lock.json) and vendored into three locations, so none of it is repo
+# source. The shareable agent conventions live in AGENTS.md and docs/agents/.
+.agents/
+.claude/
+skills/
+.skills-review/
+skills-lock.json
+.npm-cache/
