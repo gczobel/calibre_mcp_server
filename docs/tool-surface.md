@@ -48,15 +48,18 @@ find_books(author?, tag?, series?, rating_min?, rating_max?, read?, limit?)
 
 No matches is `{"count": 0, "books": []}`. That wrapper exists because a bare empty list renders no
 content at all at the tool boundary, which left a caller unable to tell "nothing matched" from "the
-call failed". It is a deliberate break rather than an inconsistency to tidy away — the older list tools
-still return bare lists — so read [ADR-0003](adr/0003-find-books-returns-a-count-alongside-its-books.md)
-before simplifying it back.
+call failed". Every list-returning tool now wraps the same way, so read
+[ADR-0003](adr/0003-find-books-returns-a-count-alongside-its-books.md) and
+[ADR-0006](adr/0006-the-legacy-list-tools-are-bounded-and-never-error-on-empty.md) before simplifying
+any of them back to a list.
 
 Criteria match case- and accent-insensitively, reusing the text normalization the title search already
 applies. A Spanish library has to find "García" when asked for "Garcia".
 
 The existing narrow tools are not removed. They become redundant rather than wrong, and removing them
-would be a breaking change for anyone already calling them.
+would be a breaking change for anyone already calling them. Since
+[ADR-0006](adr/0006-the-legacy-list-tools-are-bounded-and-never-error-on-empty.md) they are bounded and
+total in the same way: a `limit` with a small default, and an empty result rather than an error.
 
 ## Writing
 

@@ -6,13 +6,13 @@ An MCP (Model Context Protocol) server that provides tools to interact with a Ca
 ### Tools
 | Tool                            | Description                                            | Parameters           |
 | ------------------------------- | ------------------------------------------------------ | -------------------- |
-| **search_books_by_title**       | Search books by title pattern with wildcards           | `title_pattern: str` |
-| **search_authors_by_name**      | Search authors by name pattern with wildcards          | `name_pattern: str`  |
-| **get_books_by_author**         | Get all books by a specific author name                | `author_name: str`   |
-| **get_books_by_author_id**      | Get all books by a specific author ID                  | `author_id: int`     |
-| **get_books_by_series**         | Get all books in a series, ordered by index            | `series_name: str`   |
-| **get_books_by_tag**            | Get all books with a specific tag                      | `tag_name: str`      |
-| **search_books_by_tag_pattern** | Search books by tag pattern with wildcards             | `tag_pattern: str`   |
+| **search_books_by_title**       | Search books by title; pattern is start-anchored       | `title_pattern: str, limit: int = 50` |
+| **search_authors_by_name**      | Search authors by stored name; start-anchored          | `name_pattern: str, limit: int = 50` |
+| **get_books_by_author**         | Get books by an exact author name, capped by `limit`   | `author_name: str, limit: int = 50` |
+| **get_books_by_author_id**      | Get books by author ID, capped by `limit`              | `author_id: int, limit: int = 50` |
+| **get_books_by_series**         | Get books in a series, ordered by index, capped by `limit` | `series_name: str, limit: int = 50` |
+| **get_books_by_tag**            | Get books with an exact tag, capped by `limit`         | `tag_name: str, limit: int = 50` |
+| **search_books_by_tag_pattern** | Find books whose tags match a pattern; start-anchored  | `tag_pattern: str, limit: int = 50` |
 | **get_book_details**            | Get complete details for a specific book (incl. read, rating) | `book_id: int` |
 | **find_books**                  | Find books by author, tag, series, rating, read state; returns count and matches | `author?, tag?, series?, rating_min?, rating_max?, read?, limit?` |
 | **mark_book_read**              | Mark a book as read                                    | `book_id: int`       |

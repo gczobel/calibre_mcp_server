@@ -1,6 +1,7 @@
 # find_books returns a count alongside its books
 
-Status: accepted
+Status: accepted, superseded in part by
+[ADR-0006](0006-the-legacy-list-tools-are-bounded-and-never-error-on-empty.md)
 
 `find_books` returns `{"count": ..., "books": [...]}` rather than a bare list. A bare list that is empty
 renders no content block at all at the tool boundary, so a caller could not tell "nothing matched" from
