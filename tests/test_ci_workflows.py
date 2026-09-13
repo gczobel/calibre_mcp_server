@@ -132,6 +132,25 @@ def test_the_image_still_carries_latest_and_the_commit():
     assert "ghcr.io/${{ github.repository }}:${{ github.sha }}" in tags
 
 
+def test_codeql_is_told_which_language_to_analyse():
+    """`language` is not an input, so passing it analysed nothing in particular.
+
+    `github/codeql-action/init` takes `languages`. Spelled without the `s` the
+    input is ignored, the job warns, and the run stays green — which is how the
+    `actions` leg went on analysing whatever autodetection picked instead of the
+    workflows it exists for. A spelling, then, but a silent one with a real
+    consequence, which is the pair this module is for.
+    """
+    step = _step(workflow("codeql.yml"), "analyze", "github/codeql-action/init")
+    passed = step.get("with") or {}
+
+    assert "language" not in passed, (
+        "the input is `languages`; `language` is ignored, and the warning "
+        "annotation is the only sign"
+    )
+    assert passed.get("languages") == "${{ matrix.language }}"
+
+
 # -- reading the gate out of the workflow --------------------------------
 
 
