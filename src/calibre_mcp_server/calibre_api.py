@@ -890,19 +890,31 @@ class CalibreDB:
 
     def set_book_rating(self, book_id: int, stars: int) -> Dict[str, Any]:
         """
-        Set a book's rating to a whole number of stars, 1 to 5.
+        Set a book's rating to a whole number of stars, 1 to 5, or clear it.
+
+        ``stars=0`` clears the rating. Calibre's unrated state is an absent
+        row in ``books_ratings_link``, so clearing deletes the book's link
+        rather than writing a zero rating.
 
         Calibre stores ratings doubled (2-10) in ``ratings`` with a single
         link row per book in ``books_ratings_link``, so this finds or creates
         the doubled rating row and replaces the book's link.
         """
         validated_id = validate_positive_integer(book_id, 'book_id')
-        validated_stars = validate_rating_stars(stars)
-        doubled = validated_stars * 2
+        validated_stars = validate_rating_stars(stars, allow_zero=True)
 
         with write_connection(self.db_path) as conn:
             cursor = conn.cursor()
             self._ensure_book_exists(cursor, validated_id)
+
+            if validated_stars == 0:
+                cursor.execute(
+                    "DELETE FROM books_ratings_link WHERE book = ?",
+                    (validated_id,),
+                )
+                return {'book_id': validated_id, 'rating': None}
+
+            doubled = validated_stars * 2
 
             cursor.execute(
                 "SELECT id FROM ratings WHERE rating = ?", (doubled,)

@@ -818,7 +818,10 @@ async def mark_book_unread(
 
 @mcp.tool(
     name="set_book_rating",
-    description="Set a book's rating to a whole number of stars from 1 to 5",
+    description=(
+        "Set a book's rating to a whole number of stars from 1 to 5, "
+        "or clear it with 0"
+    ),
     tags={"book", "rating", "write"},
     annotations={
         "title": "Set Book Rating",
@@ -832,8 +835,8 @@ async def set_book_rating(
         gt=0
     )],
     stars: Annotated[int, Field(
-        description="Rating in whole stars, from 1 to 5",
-        ge=1,
+        description="Rating in whole stars, from 1 to 5, or 0 to clear",
+        ge=0,
         le=5
     )],
     ctx: Context
@@ -846,12 +849,12 @@ async def set_book_rating(
     book_id : int
         Unique ID of the book in the database.
     stars : int
-        Rating in whole stars, from 1 to 5.
+        Rating in whole stars, from 1 to 5, or 0 to clear the rating.
 
     Returns
     -------
     Dict[str, Any]
-        The book ID and its new rating.
+        The book ID and its new rating, or ``None`` when cleared.
 
     Raises
     ------
