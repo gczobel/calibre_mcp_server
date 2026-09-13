@@ -11,11 +11,19 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch: {}
 
-# A superseded pull request run is wasted work, so cancel it. Pushes to main and
-# tag builds are never cancelled, since those are what publish the image.
+# A superseded pull request run is wasted work, so cancel it. A push to main or a
+# tag gets its own group keyed on the commit, so it can never cancel another run:
+# those are the runs that publish the image, and a cancelled one leaves `latest`
+# silently pointing at an older commit.
+#
+# The group does the work rather than the boolean below. `cancel-in-progress` fed
+# an expression appears to be read as a non-empty string, which is true, so it
+# cancelled a main push regardless of the condition.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: >-
+    ${{ github.workflow }}-${{
+      github.event_name == 'pull_request' && github.head_ref || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   test:
