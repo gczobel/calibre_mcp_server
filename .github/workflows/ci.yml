@@ -1,5 +1,23 @@
 name: CI
 
+# Whether this run may publish. The GHCR login and the image push both read this
+# one value, so the two can never disagree about whether the run publishes.
+#
+# Gated on the ref and not only on the event, because `workflow_dispatch` can be
+# pointed at any branch: an event-only gate published `:latest` from whatever
+# branch a dispatch named, and the homelab pulls `:latest`, so a stray dispatch
+# would have replaced the deployed server with unreviewed code. A dispatch on a
+# branch still builds the image, which is the useful half.
+#
+# Compared against the string 'true' on purpose. Workflow env is text, and a
+# value fed to a boolean field is a non-empty string, so `if: env.PUBLISH_IMAGE`
+# would be true while holding 'false' — the trap the concurrency group below
+# fell into.
+env:
+  PUBLISH_IMAGE: >-
+    ${{ github.event_name != 'pull_request'
+    && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+
 on:
   push:
     branches: [main]
@@ -67,8 +85,9 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
+      # A run that will not push has no use for credentials.
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
+        if: env.PUBLISH_IMAGE == 'true'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -79,7 +98,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ env.PUBLISH_IMAGE == 'true' }}
           # Pull the base image every run. The weekly schedule exists to pick up
           # base-image updates, since the only source being built is this commit.
           pull: true
