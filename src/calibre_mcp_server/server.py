@@ -1097,7 +1097,10 @@ async def get_library_stats(ctx: Context) -> Dict[str, Any]:
 
 @mcp.tool(
     name="get_all_tags",
-    description="Get all available tags in the Calibre library",
+    description=(
+        "Get every tag in the Calibre library, with a count. Tags are "
+        "ordered alphabetically."
+    ),
     tags={"tags", "library", "list"},
     annotations={
         "title": "Get All Tags",
@@ -1105,14 +1108,15 @@ async def get_library_stats(ctx: Context) -> Dict[str, Any]:
         "openWorldHint": False
     }
 )
-async def get_all_tags(ctx: Context) -> List[Dict[str, Any]]:
+async def get_all_tags(ctx: Context) -> Dict[str, Any]:
     """
     Get all available tags in the Calibre library.
 
     Returns
     -------
-    List[Dict[str, Any]]
-        List of all tags with ID and name, ordered alphabetically.
+    Dict[str, Any]
+        ``count`` of tags and ``tags``, each with an ID and a name,
+        ordered alphabetically. Empty when the library has no tags.
 
     Raises
     ------
@@ -1126,7 +1130,7 @@ async def get_all_tags(ctx: Context) -> List[Dict[str, Any]]:
         formatted_results = CalibreToolHandler.format_simple_results(results)
 
         await ctx.debug(f"Found {len(formatted_results)} tags")
-        return formatted_results
+        return {"count": len(formatted_results), "tags": formatted_results}
 
     except Exception as e:
         await CalibreToolHandler.handle_error(
