@@ -222,7 +222,8 @@ class CalibreLibrary:
                 f"CREATE TABLE books_custom_column_{column_id}_link "
                 f"(book INTEGER, value INTEGER)"
             )
-        # 'composite' and anything else have no backing table.
+        # A datatype in neither set gets no backing table, matching Calibre,
+        # where every supported datatype falls in exactly one of the two sets.
         return column_id
 
     def set_direct_value(self, column_id: int, book_id: int, value) -> None:
