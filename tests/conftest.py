@@ -5,7 +5,7 @@ against a minimal Calibre-like ``metadata.db`` built in a temp directory. The
 schema mirrors the tables the server actually queries, so a test never depends
 on a real Calibre install.
 
-Both seams take a library path plus configuration of their own, so a test that
+Both classes take a library path plus configuration of their own, so a test that
 builds one asks for ``db`` or ``book`` here rather than repeating the
 construction — the same argument as the tool-boundary fixtures below.
 
@@ -259,24 +259,27 @@ def library(tmp_path):
 
 # -- CalibreDB seam ------------------------------------------------------
 #
-# The two classes under test both take a library path plus configuration of
-# their own, and the per-test data (which book) is an argument rather than a
-# fixture, so each is a factory. ``db()`` and ``book(book_id)`` are the
-# unconfigured cases.
+# Both classes of the seam take a library path plus configuration of their own,
+# and the per-test data (which book) is an argument rather than a fixture, so each
+# is a factory. ``db()`` and ``book(book_id)`` are the unconfigured cases.
 #
-# The plain helpers below are here for the same reason as the factories: a
-# module that needs one should find it already written, not write a sixth copy.
+# ``read_column_label`` is the one setting a test varies, so it is the one the
+# factories name. Anything else the constructors take is not configured here, and
+# a test that needs it should say so rather than have it forwarded silently.
+#
+# A pure helper belongs in the module that uses it. These two need the fixture
+# library, which is what makes them fixtures rather than functions.
 
 
 @pytest.fixture
 def db(library):
     """The ``CalibreDB`` seam over this test's fixture library.
 
-    ``read_column_label`` is the configuration a test varies; everything else
-    keeps the defaults the server itself would construct with.
+    ``read_column_label`` defaults to the label every test here assumes, so a
+    test that means a different column says so at the call site.
     """
-    def _db(**kwargs):
-        return CalibreDB(str(library.path), **kwargs)
+    def _db(read_column_label="read"):
+        return CalibreDB(str(library.path), read_column_label=read_column_label)
 
     return _db
 
@@ -284,8 +287,10 @@ def db(library):
 @pytest.fixture
 def book(library):
     """A ``Book`` over this test's fixture library, for the given book id."""
-    def _book(book_id, **kwargs):
-        return Book(book_id, str(library.path), **kwargs)
+    def _book(book_id, read_column_label="read"):
+        return Book(
+            book_id, str(library.path), read_column_label=read_column_label
+        )
 
     return _book
 
@@ -311,17 +316,13 @@ def add_book(library):
 
 
 @pytest.fixture
-def ids():
-    """The book ids of ``find_books`` rows, sorted, for comparing to a list."""
-    return lambda rows: sorted(row["id"] for row in rows)
-
-
-@pytest.fixture
 def direct_column_value(library):
     """The stored value of a direct-layout custom column, read by raw SQL.
 
     Below the reader on purpose: an assertion about what a write stored must not
-    go through the reader it is meant to be checking.
+    go through the reader it is meant to be checking. A book with no row in the
+    column reads as None, which is this fixture's shape rather than a claim about
+    Calibre, where the column is NOT NULL.
     """
     def _value(column_id, book_id):
         rows = library.query(
@@ -346,12 +347,29 @@ def bound_server(library, db, monkeypatch):
     session — so ``calibre_db`` is rebound outright here. That is what makes a
     boundary test independent of import order, instead of depending on two
     modules' fixtures happening to look alike.
+
+    The rebind is then asserted, so that losing it fails here rather than
+    somewhere downstream and unrecognisably; ``tests/test_boundary_order.py``
+    covers the rule itself and the order property.
     """
     monkeypatch.setenv("CALIBRE_LIBRARY_PATH", str(library.path))
 
     import calibre_mcp_server.server as server
 
     monkeypatch.setattr(server, "calibre_db", db())
+
+    # Not decoration: assert the postcondition rather than trusting it. Delete the
+    # rebind above and this fires in every boundary test at once, saying which
+    # library the server is on and which one the test meant. Without it the
+    # failure is four tests asserting against another test's library, and — worse,
+    # because it is silent — any test whose assertions happen to hold there
+    # passing for the wrong reason.
+    assert server.calibre_db.db_path == str(library.db_path), (
+        "the server is bound to "
+        f"{server.calibre_db.db_path}, not to this test's {library.db_path}: "
+        "bound_server's rebind did not happen, so this test would assert "
+        "against another test's library"
+    )
     return server
 
 
