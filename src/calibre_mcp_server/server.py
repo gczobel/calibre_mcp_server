@@ -183,9 +183,12 @@ class CalibreToolHandler:
 @mcp.tool(
     name="search_books_by_title",
     description=(
-        "Search books by title. The pattern is anchored at the start: "
-        "'Python%' matches titles beginning with Python, '%Django%' "
-        "matches anywhere. Returns a count and up to limit books."
+        "Search books by title. A trailing % matches any ending "
+        "('Python%'), a leading one any beginning ('%Django'), both "
+        "match anywhere ('%Django%'); with no %, the title must match "
+        "exactly. Case-insensitive, accents ignored except ñ and ç. "
+        "Returns a count and up to limit books; no match returns "
+        "count 0, not an error."
     ),
     tags={"search", "books", "title"},
     annotations={
@@ -256,9 +259,12 @@ async def search_books_by_title(
 @mcp.tool(
     name="search_authors_by_name",
     description=(
-        "Search authors by stored name. The pattern is anchored at the "
-        "start: 'Asimov%' matches, '%Asimov%' matches anywhere. Returns "
-        "a count and up to limit authors."
+        "Search authors by stored name, under the same pattern rule: a "
+        "trailing % matches any ending ('Asimov%'), a leading one any "
+        "beginning, both match anywhere, and with no % the name must "
+        "match exactly. Case-insensitive, accents ignored except ñ and ç. "
+        "Returns a count and up to limit authors; no match returns "
+        "count 0, not an error."
     ),
     tags={"search", "authors", "name"},
     annotations={
@@ -327,9 +333,10 @@ async def search_authors_by_name(
 @mcp.tool(
     name="get_books_by_author",
     description=(
-        "Get books by an exact author name, matched accent- and "
-        "case-insensitively and capped by limit. Use the author ID tool "
-        "when a name is ambiguous."
+        "Get books by an exact author name, matched case-insensitively; "
+        "accents are ignored except ñ and ç, which are significant. "
+        "Capped by limit; use the author ID tool when a name is "
+        "ambiguous. An unknown name returns count 0, not an error."
     ),
     tags={"search", "books", "author"},
     annotations={
@@ -404,7 +411,10 @@ async def get_books_by_author(
 
 @mcp.tool(
     name="get_books_by_author_id",
-    description="Get books by author ID, capped by limit.",
+    description=(
+        "Get books by author ID, capped by limit. An unknown ID returns "
+        "count 0, not an error."
+    ),
     tags={"search", "books", "author", "id"},
     annotations={
         "title": "Get Books by Author ID",
@@ -476,7 +486,9 @@ async def get_books_by_author_id(
     name="get_books_by_series",
     description=(
         "Get the books in a series, ordered by series index and capped "
-        "by limit."
+        "by limit. The name is matched exactly and case-insensitively, "
+        "accents ignored except ñ and ç. An unknown series returns "
+        "count 0, not an error."
     ),
     tags={"search", "books", "series"},
     annotations={
@@ -548,9 +560,10 @@ async def get_books_by_series(
 @mcp.tool(
     name="get_books_by_tag",
     description=(
-        "Get books carrying an exact tag name, capped by limit. A common "
-        "tag matches thousands of books; find_books(tag=...) is the "
-        "bounded alternative."
+        "Get books carrying an exact tag name, matched case-insensitively "
+        "with accents ignored except ñ and ç, and capped by limit. A "
+        "common tag matches thousands of books, so use find_books to "
+        "combine criteria. An unknown tag returns count 0, not an error."
     ),
     tags={"search", "books", "tags"},
     annotations={
@@ -623,9 +636,12 @@ async def get_books_by_tag(
 @mcp.tool(
     name="search_books_by_tag_pattern",
     description=(
-        "Find books whose tags match a pattern, anchored at the start. "
-        "A common tag matches thousands of books, so the result is capped "
-        "by limit; find_books(tag=...) is the bounded alternative."
+        "Find books whose tags match a pattern: a trailing % matches any "
+        "ending ('sci%'), a leading one any beginning, both match "
+        "anywhere, and with no % the tag must match exactly. "
+        "Case-insensitive, accents ignored except ñ and ç. A common tag "
+        "matches thousands of books, so the result is capped by limit; no "
+        "match returns count 0, not an error."
     ),
     tags={"search", "books", "tags", "pattern"},
     annotations={
@@ -944,8 +960,10 @@ async def set_book_rating(
     name="find_books",
     description=(
         "Find books matching optional criteria (author, tag, series, "
-        "rating range, read state), combined with AND. Returns the number "
-        "of matches alongside the matching books."
+        "rating range, read state), combined with AND. Text criteria "
+        "match as substrings, case-insensitively except for ñ and ç. "
+        "Returns the number of matches alongside the matching books; no "
+        "match returns count 0, not an error."
     ),
     tags={"search", "books", "filter"},
     annotations={

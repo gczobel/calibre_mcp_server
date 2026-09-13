@@ -54,7 +54,24 @@ call failed". Every list-returning tool now wraps the same way, so read
 any of them back to a list.
 
 Criteria match case- and accent-insensitively, reusing the text normalization the title search already
-applies. A Spanish library has to find "García" when asked for "Garcia".
+applies — so a Spanish library finds "García" when asked for "Garcia". `ñ` and `ç` are deliberate
+exceptions: the normalization preserves them, so "Munoz" does not find "Muñoz".
+
+### How the older list tools match
+
+The tools that predate `find_books` take a `LIKE`-shaped pattern instead of a substring. The `%`
+position chooses the mode, and its absence means an exact match:
+
+| pattern | matches |
+| --- | --- |
+| `Python%` | titles beginning with Python |
+| `%Django` | titles ending with Django |
+| `%Django%` | titles containing Django |
+| `Python` | the title Python, exactly |
+
+A bare pattern is therefore *not* a prefix search — `Fundaci` finds nothing where `Fundaci%` finds
+every Fundación. Author names and tag patterns follow the same rule, and they are case-insensitive
+with the same `ñ`/`ç` exception.
 
 The existing narrow tools are not removed. They become redundant rather than wrong, and removing them
 would be a breaking change for anyone already calling them. Since
