@@ -35,4 +35,8 @@ package = true
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    # Used by the workflow-contract tests to read .github/workflows. fastmcp
+    # already pulls it in, but a test should not rely on a transient of its
+    # runtime dependencies staying put.
+    "pyyaml>=6.0.2",
 ]
