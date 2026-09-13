@@ -114,6 +114,24 @@ def test_the_login_and_the_push_are_gated_alike():
 
 
 
+def test_the_build_runs_even_when_nothing_is_published():
+    """The useful half of a dispatch on a branch is the build itself.
+
+    Gating the build too would leave a broken Dockerfile for `main` to find,
+    which is the one thing the dispatch was kept for.
+    """
+    step = _step(workflow("ci.yml"), "publish", "docker/build-push-action")
+    assert "if" not in step
+
+
+def test_the_image_still_carries_latest_and_the_commit():
+    """What a push to `main` publishes has to stay `:latest` and `:<sha>`."""
+    step = _step(workflow("ci.yml"), "publish", "docker/build-push-action")
+    tags = (step.get("with") or {}).get("tags", "")
+    assert "ghcr.io/${{ github.repository }}:latest" in tags
+    assert "ghcr.io/${{ github.repository }}:${{ github.sha }}" in tags
+
+
 # -- reading the gate out of the workflow --------------------------------
 
 
