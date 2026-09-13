@@ -1067,7 +1067,7 @@ async def get_library_stats(ctx: Context) -> Dict[str, Any]:
 
         stats = calibre_db.get_database_info()
 
-        total_books = stats.get('total_books', 0)
+        total_books = stats.get('books_count', 0)
         await ctx.debug(f"Library contains {total_books} books")
         return stats
 
